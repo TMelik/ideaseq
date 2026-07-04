@@ -30,6 +30,7 @@ Before making changes, read:
 - Keep abstractions small and justified by current behavior, not speculative future scope.
 - Avoid framework or tooling choices that make the plugin harder to maintain.
 - Favor clear data contracts between the Logseq frontend and local bridge.
+- After making code changes, run `npm run typecheck` and then `npm run build`.
 
 ## References And Provenance
 
