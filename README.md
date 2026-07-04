@@ -62,4 +62,4 @@ codex exec --json --cd <graph-path> --sandbox workspace-write --ask-for-approval
 
 ## License
 
-License is not chosen yet.
+GPL-3.0. See [LICENSE](LICENSE).
