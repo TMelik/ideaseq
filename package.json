@@ -1,0 +1,39 @@
+{
+  "name": "ideaseq",
+  "version": "0.1.0",
+  "description": "Logseq plugin for brainstorming projects and texts with local AI agents.",
+  "type": "module",
+  "main": "dist/index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.bridge.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.bridge.json --noEmit",
+    "bridge": "node dist-bridge/bridge/index.js"
+  },
+  "keywords": [
+    "logseq",
+    "plugin",
+    "ai",
+    "brainstorming",
+    "codex"
+  ],
+  "author": "TMelik",
+  "license": "GPL-3.0-only",
+  "logseq": {
+    "id": "ideaseq",
+    "title": "Ideaseq",
+    "main": "dist/index.html"
+  },
+  "dependencies": {
+    "@logseq/libs": "^0.3.4"
+  },
+  "overrides": {
+    "dompurify": "3.4.11",
+    "lodash-es": "4.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0"
+  }
+}

@@ -1,0 +1,74 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ideaseq {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 100vh;
+  padding: 12px;
+  background: var(--ls-primary-background-color, #ffffff);
+  color: var(--ls-primary-text-color, #1f2933);
+}
+
+.ideaseq-header {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.ideaseq-context,
+.ideaseq-status {
+  color: var(--ls-secondary-text-color, #52616b);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ideaseq-prompt {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--ls-border-color, #d0d7de);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--ls-secondary-background-color, #f8fafc);
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.ideaseq-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ideaseq-actions button {
+  border: 1px solid var(--ls-border-color, #d0d7de);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--ls-secondary-background-color, #f8fafc);
+  color: inherit;
+  cursor: pointer;
+}
+
+.ideaseq-output {
+  flex: 1;
+  min-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--ls-border-color, #d0d7de);
+  border-radius: 6px;
+  margin: 0;
+  padding: 8px;
+  background: var(--ls-secondary-background-color, #f8fafc);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+}

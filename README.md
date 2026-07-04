@@ -6,7 +6,7 @@ The goal is to make Logseq a practical thinking workspace where an agent can use
 
 ## Status
 
-Early planning stage. No plugin implementation has been started yet.
+Early implementation stage. The repository contains the initial Logseq plugin scaffold and local bridge skeleton.
 
 See [ROADMAP.md](ROADMAP.md) for the current architecture and rollout plan.
 
@@ -58,6 +58,32 @@ The first provider target is Codex through non-interactive JSON output:
 
 ```bash
 codex exec --json --cd <graph-path> --sandbox workspace-write --ask-for-approval on-request
+```
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build the Logseq plugin and bridge:
+
+```bash
+npm run build
+```
+
+Run the bridge after building:
+
+```bash
+npm run bridge
+```
+
+For plugin UI development:
+
+```bash
+npm run dev
 ```
 
 ## License
