@@ -6,6 +6,35 @@ import { appendAssistantText } from '../shared/agentText';
 import type { EditIntent, PanelOpenOptions } from '../shared/types';
 import { EditPreview } from './EditPreview';
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function fileUrlToPath(url: URL): string {
+  const path = decodeURIComponent(url.pathname);
+  if (/^\/[A-Za-z]:\//.test(path)) {
+    return path.slice(1);
+  }
+  return path;
+}
+
+function pluginRootPathFromLocation(): string | null {
+  const url = new URL(window.location.href);
+  if (url.protocol !== 'file:') return null;
+
+  const path = fileUrlToPath(url);
+  const distIndexMatch = /[/\\]dist[/\\]index\.html$/;
+  if (distIndexMatch.test(path)) {
+    return path.replace(distIndexMatch, '');
+  }
+  return path.replace(/[/\\][^/\\]*$/, '');
+}
+
+function bridgeCommand(): string {
+  const pluginRootPath = pluginRootPathFromLocation();
+  return pluginRootPath ? `npm --prefix ${shellQuote(pluginRootPath)} run bridge` : 'npm run bridge';
+}
+
 export class ChatPanel {
   private readonly root: HTMLElement;
   private readonly prompt: HTMLTextAreaElement;
@@ -165,7 +194,7 @@ export class ChatPanel {
       this.healthIndicator.textContent = 'Offline';
       this.sendBtn.setAttribute('disabled', 'true');
       this.copyBridgeCommandBtn.style.display = 'inline-block';
-      this.status.textContent = 'Bridge offline. Run npm run bridge, then refresh.';
+      this.status.textContent = `Bridge offline. Run ${bridgeCommand()}, then refresh.`;
     }
     return ok;
   }
@@ -192,11 +221,12 @@ export class ChatPanel {
   }
 
   private async copyBridgeCommand(): Promise<void> {
+    const command = bridgeCommand();
     try {
-      await navigator.clipboard.writeText('npm run bridge');
-      this.status.textContent = 'Copied: npm run bridge';
+      await navigator.clipboard.writeText(command);
+      this.status.textContent = `Copied: ${command}`;
     } catch {
-      this.status.textContent = 'Bridge command: npm run bridge';
+      this.status.textContent = `Bridge command: ${command}`;
     }
   }
 
