@@ -19,8 +19,34 @@ body {
 }
 
 .ideaseq-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--ls-border-color, #e2e8f0);
+  padding-bottom: 8px;
+}
+
+.ideaseq-title {
   font-size: 16px;
   font-weight: 650;
+}
+
+.ideaseq-health-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.ideaseq-health-indicator.online {
+  background-color: var(--ls-success-background-color, #dcfce7);
+  color: var(--ls-success-text-color, #166534);
+}
+
+.ideaseq-health-indicator.offline {
+  background-color: var(--ls-error-background-color, #fee2e2);
+  color: var(--ls-error-text-color, #991b1b);
 }
 
 .ideaseq-context,
@@ -43,6 +69,11 @@ body {
   line-height: 1.4;
 }
 
+.ideaseq-prompt:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .ideaseq-actions {
   display: flex;
   justify-content: flex-end;
@@ -52,10 +83,27 @@ body {
 .ideaseq-actions button {
   border: 1px solid var(--ls-border-color, #d0d7de);
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   background: var(--ls-secondary-background-color, #f8fafc);
   color: inherit;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ideaseq-actions button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ideaseq-actions button.stop-button {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.ideaseq-actions button.stop-button:hover {
+  background-color: #fecaca;
 }
 
 .ideaseq-output {
@@ -65,10 +113,48 @@ body {
   border: 1px solid var(--ls-border-color, #d0d7de);
   border-radius: 6px;
   margin: 0;
-  padding: 8px;
+  padding: 10px;
   background: var(--ls-secondary-background-color, #f8fafc);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msg-status {
+  color: var(--ls-secondary-text-color, #64748b);
+  font-style: italic;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.msg-status::before {
+  content: "• ";
+}
+
+.msg-stderr {
+  color: #b45309;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   white-space: pre-wrap;
-  word-break: break-word;
+  background: #fffbeb;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.msg-error {
+  color: #991b1b;
+  background-color: #fee2e2;
+  padding: 8px;
+  border-radius: 6px;
+  font-weight: 600;
   font-size: 12px;
-  line-height: 1.45;
+  border: 1px solid #fca5a5;
+}
+
+.msg-assistant {
+  color: var(--ls-primary-text-color, #1e293b);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  padding: 6px 0;
 }

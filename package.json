@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.bridge.json",
+    "test": "npm run build && node --test bridge/providers/codexProvider.test.mjs src/shared/prompt.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.bridge.json --noEmit",
     "bridge": "node dist-bridge/bridge/index.js"
   },

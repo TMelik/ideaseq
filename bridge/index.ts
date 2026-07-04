@@ -1,8 +1,5 @@
-import { spawn } from 'node:child_process';
 import { createServer, type ServerResponse } from 'node:http';
-import { createInterface } from 'node:readline';
-
-import { buildAgentPrompt } from '../src/shared/prompt.js';
+import { runCodex } from './providers/codexProvider.js';
 import type { AgentEvent, AgentRequest } from '../src/shared/types.js';
 
 const DEFAULT_PORT = 45321;
@@ -40,30 +37,6 @@ function isAgentRequest(value: unknown): value is AgentRequest {
     && typeof record.settings === 'object';
 }
 
-function codexArgs(request: AgentRequest): string[] {
-  const args = [
-    '--ask-for-approval',
-    request.settings.approvalMode,
-    'exec',
-    '--json',
-    '--skip-git-repo-check',
-    '--sandbox',
-    request.settings.sandbox,
-  ];
-
-  const cwd = request.settings.graphPath || request.context.graphPath;
-  if (cwd) {
-    args.push('--cd', cwd);
-  }
-
-  if (request.settings.model.trim()) {
-    args.push('--model', request.settings.model.trim());
-  }
-
-  args.push('-');
-  return args;
-}
-
 async function handleChat(res: ServerResponse, request: AgentRequest): Promise<void> {
   res.writeHead(200, {
     'access-control-allow-origin': '*',
@@ -72,49 +45,30 @@ async function handleChat(res: ServerResponse, request: AgentRequest): Promise<v
     'content-type': 'application/x-ndjson; charset=utf-8',
   });
 
-  sendEvent(res, { type: 'start', provider: request.provider });
-
-  const child = spawn(request.settings.codexCommand || 'codex', codexArgs(request), {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: process.env,
-  });
-
+  const abortController = new AbortController();
   const stop = () => {
-    if (!child.killed) {
-      child.kill('SIGTERM');
-    }
+    abortController.abort();
   };
   res.on('close', stop);
 
-  child.on('error', (error) => {
-    sendEvent(res, { type: 'error', message: error.message });
-    res.end();
-  });
-
-  child.stdin.end(buildAgentPrompt(request));
-
-  const stdout = createInterface({ input: child.stdout });
-  stdout.on('line', (line) => {
-    if (!line.trim()) return;
-    try {
-      sendEvent(res, { type: 'codex-event', event: JSON.parse(line) });
-    } catch {
-      sendEvent(res, { type: 'stdout', text: line });
+  try {
+    const events = runCodex(request, abortController.signal);
+    for await (const event of events) {
+      if (res.destroyed || res.writableEnded) {
+        break;
+      }
+      sendEvent(res, event);
     }
-  });
-
-  const stderr = createInterface({ input: child.stderr });
-  stderr.on('line', (line) => {
-    if (line.trim()) {
-      sendEvent(res, { type: 'stderr', text: line });
+  } catch (error) {
+    if (!res.destroyed && !res.writableEnded) {
+      sendEvent(res, { type: 'error', message: error instanceof Error ? error.message : String(error) });
     }
-  });
-
-  child.on('close', (exitCode) => {
+  } finally {
     res.off('close', stop);
-    sendEvent(res, { type: 'done', exitCode });
-    res.end();
-  });
+    if (!res.destroyed && !res.writableEnded) {
+      res.end();
+    }
+  }
 }
 
 const server = createServer(async (req, res) => {

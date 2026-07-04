@@ -1,13 +1,29 @@
 import type { AgentEvent, AgentRequest } from '../shared/types';
 
+export async function checkBridgeHealth(bridgeUrl: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${bridgeUrl.replace(/\/$/, '')}/health`, {
+      method: 'GET',
+      headers: { 'accept': 'application/json' },
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as Record<string, unknown>;
+    return data.ok === true && data.name === 'ideaseq-bridge';
+  } catch {
+    return false;
+  }
+}
+
 export async function* streamAgentEvents(
   bridgeUrl: string,
   request: AgentRequest,
+  signal?: AbortSignal,
 ): AsyncGenerator<AgentEvent> {
   const response = await fetch(`${bridgeUrl.replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
+    signal,
   });
 
   if (!response.ok || !response.body) {

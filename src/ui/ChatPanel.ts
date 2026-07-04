@@ -1,31 +1,20 @@
-import { streamAgentEvents } from '../bridgeClient/client';
+import { checkBridgeHealth, streamAgentEvents } from '../bridgeClient/client';
 import { getGraphContext, summarizeContext } from '../logseq/graphAdapter';
 import { getSettings } from '../logseq/settings';
-import type { AgentEvent } from '../shared/types';
-
-function eventText(event: AgentEvent): string {
-  switch (event.type) {
-    case 'start':
-      return `Started ${event.provider}`;
-    case 'stdout':
-    case 'stderr':
-      return event.text;
-    case 'codex-event':
-      return JSON.stringify(event.event);
-    case 'error':
-      return `Error: ${event.message}`;
-    case 'done':
-      return `Done: exit ${event.exitCode ?? 'unknown'}`;
-  }
-}
 
 export class ChatPanel {
   private readonly root: HTMLElement;
   private readonly prompt: HTMLTextAreaElement;
-  private readonly output: HTMLPreElement;
+  private readonly output: HTMLDivElement;
   private readonly status: HTMLElement;
   private readonly context: HTMLElement;
+  private readonly healthIndicator: HTMLElement;
+  private readonly sendBtn: HTMLButtonElement;
+  private readonly stopBtn: HTMLButtonElement;
+  private readonly refreshBtn: HTMLButtonElement;
+
   private busy = false;
+  private abortController: AbortController | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -34,7 +23,16 @@ export class ChatPanel {
 
     const header = document.createElement('header');
     header.className = 'ideaseq-header';
-    header.textContent = 'Ideaseq';
+
+    const title = document.createElement('span');
+    title.className = 'ideaseq-title';
+    title.textContent = 'Ideaseq';
+
+    this.healthIndicator = document.createElement('span');
+    this.healthIndicator.className = 'ideaseq-health-indicator offline';
+    this.healthIndicator.textContent = 'Offline';
+
+    header.append(title, this.healthIndicator);
 
     this.context = document.createElement('div');
     this.context.className = 'ideaseq-context';
@@ -42,42 +40,114 @@ export class ChatPanel {
 
     this.prompt = document.createElement('textarea');
     this.prompt.className = 'ideaseq-prompt';
-    this.prompt.placeholder = 'Brainstorm, develop, or rewrite with the current Logseq context...';
+    this.prompt.placeholder = 'Brainstorm, develop, or rewrite with the current Logseq context...\n(Ctrl+Enter to send)';
     this.prompt.rows = 5;
+    this.prompt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        void this.submit();
+      }
+    });
 
     const actions = document.createElement('div');
     actions.className = 'ideaseq-actions';
 
-    const send = document.createElement('button');
-    send.type = 'button';
-    send.textContent = 'Send';
-    send.addEventListener('click', () => void this.submit());
+    this.sendBtn = document.createElement('button');
+    this.sendBtn.type = 'button';
+    this.sendBtn.textContent = 'Send';
+    this.sendBtn.addEventListener('click', () => void this.submit());
 
-    const refresh = document.createElement('button');
-    refresh.type = 'button';
-    refresh.textContent = 'Refresh context';
-    refresh.addEventListener('click', () => void this.refreshContext());
+    this.stopBtn = document.createElement('button');
+    this.stopBtn.type = 'button';
+    this.stopBtn.textContent = 'Stop';
+    this.stopBtn.className = 'stop-button';
+    this.stopBtn.style.display = 'none';
+    this.stopBtn.addEventListener('click', () => this.cancel());
 
-    actions.append(refresh, send);
+    this.refreshBtn = document.createElement('button');
+    this.refreshBtn.type = 'button';
+    this.refreshBtn.textContent = 'Refresh context';
+    this.refreshBtn.addEventListener('click', () => void this.refreshContext());
+
+    actions.append(this.refreshBtn, this.stopBtn, this.sendBtn);
 
     this.status = document.createElement('div');
     this.status.className = 'ideaseq-status';
     this.status.textContent = 'Ready';
 
-    this.output = document.createElement('pre');
+    this.output = document.createElement('div');
     this.output.className = 'ideaseq-output';
 
     this.root.append(header, this.context, this.prompt, actions, this.status, this.output);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (this.busy) {
+          e.preventDefault();
+          this.cancel();
+        } else {
+          try {
+            logseq.hideMainUI();
+          } catch {
+            // Not running inside Logseq iframe (e.g. testing)
+          }
+        }
+      }
+    });
+
+    void this.checkHealth();
     void this.refreshContext();
+  }
+
+  async checkHealth(): Promise<boolean> {
+    const settings = getSettings();
+    const ok = await checkBridgeHealth(settings.bridgeUrl);
+    if (ok) {
+      this.healthIndicator.className = 'ideaseq-health-indicator online';
+      this.healthIndicator.textContent = 'Online';
+      this.sendBtn.removeAttribute('disabled');
+    } else {
+      this.healthIndicator.className = 'ideaseq-health-indicator offline';
+      this.healthIndicator.textContent = 'Offline';
+      this.sendBtn.setAttribute('disabled', 'true');
+    }
+    return ok;
   }
 
   async refreshContext(): Promise<void> {
     this.context.textContent = summarizeContext(await getGraphContext());
+    void this.checkHealth();
   }
 
-  private append(line: string): void {
-    this.output.textContent += `${line}\n`;
+  private appendMessage(type: string, text: string): void {
+    const el = document.createElement('div');
+    el.className = `msg-${type}`;
+    el.textContent = text;
+    this.output.append(el);
     this.output.scrollTop = this.output.scrollHeight;
+  }
+
+  private cancel(): void {
+    if (this.abortController && !this.abortController.signal.aborted) {
+      this.abortController.abort();
+      this.appendMessage('status', 'Execution cancelled by user.');
+      this.status.textContent = 'Cancelled';
+    }
+  }
+
+  private setBusy(busy: boolean): void {
+    this.busy = busy;
+    if (busy) {
+      this.sendBtn.style.display = 'none';
+      this.refreshBtn.style.display = 'none';
+      this.stopBtn.style.display = 'inline-block';
+      this.prompt.setAttribute('disabled', 'true');
+    } else {
+      this.sendBtn.style.display = 'inline-block';
+      this.refreshBtn.style.display = 'inline-block';
+      this.stopBtn.style.display = 'none';
+      this.prompt.removeAttribute('disabled');
+    }
   }
 
   private async submit(): Promise<void> {
@@ -89,9 +159,17 @@ export class ChatPanel {
       return;
     }
 
-    this.busy = true;
-    this.output.textContent = '';
+    const online = await this.checkHealth();
+    if (!online) {
+      this.status.textContent = 'Bridge is offline.';
+      return;
+    }
+
+    this.setBusy(true);
+    this.output.innerHTML = '';
     this.status.textContent = 'Sending...';
+
+    this.abortController = new AbortController();
 
     try {
       const settings = getSettings();
@@ -103,16 +181,36 @@ export class ChatPanel {
         settings,
       };
 
-      for await (const event of streamAgentEvents(settings.bridgeUrl, request)) {
-        this.append(eventText(event));
-        if (event.type === 'done') {
+      for await (const event of streamAgentEvents(settings.bridgeUrl, request, this.abortController.signal)) {
+        if (event.type === 'start') {
+          this.status.textContent = `Running on ${event.provider}...`;
+          this.appendMessage('status', `Started ${event.provider}`);
+        } else if (event.type === 'status') {
+          this.appendMessage('status', event.text);
+        } else if (event.type === 'message') {
+          this.appendMessage('assistant', event.text);
+        } else if (event.type === 'stderr') {
+          this.appendMessage('stderr', event.text);
+        } else if (event.type === 'error') {
+          this.appendMessage('error', event.message);
+          this.status.textContent = 'Error';
+        } else if (event.type === 'done') {
+          const exitText = event.exitCode !== null ? ` (exit ${event.exitCode})` : '';
+          this.appendMessage('status', `Finished${exitText}`);
           this.status.textContent = 'Ready';
         }
       }
     } catch (error) {
-      this.status.textContent = error instanceof Error ? error.message : 'Unknown error';
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Cancelled by user abort
+      } else {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        this.appendMessage('error', msg);
+        this.status.textContent = 'Error';
+      }
     } finally {
-      this.busy = false;
+      this.abortController = null;
+      this.setBusy(false);
     }
   }
 }

@@ -35,10 +35,10 @@ export interface AgentRequest {
 }
 
 export type AgentEvent =
-  | { type: 'start'; provider: AgentProviderId }
-  | { type: 'stdout'; text: string }
+  | { type: 'start'; provider: string }
+  | { type: 'message'; text: string }
+  | { type: 'status'; text: string }
   | { type: 'stderr'; text: string }
-  | { type: 'codex-event'; event: unknown }
   | { type: 'error'; message: string }
   | { type: 'done'; exitCode: number | null };
 

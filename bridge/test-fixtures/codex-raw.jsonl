@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"019f2cf2-cf52-7c82-bda5-6644434cddcd"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"/usr/bin/zsh -lc ls","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"/usr/bin/zsh -lc ls","aggregated_output":"AGENTS.md\nLICENSE\nREADME.md\nROADMAP.md\nbridge\ndist\ndist-bridge\nindex.html\nnode_modules\npackage-lock.json\npackage.json\nsrc\ntsconfig.bridge.json\ntsconfig.json\nvite.config.ts\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Hello.\n\nFiles in the current directory:\n\n```text\nAGENTS.md\nLICENSE\nREADME.md\nROADMAP.md\nbridge\ndist\ndist-bridge\nindex.html\nnode_modules\npackage-lock.json\npackage.json\nsrc\ntsconfig.bridge.json\ntsconfig.json\nvite.config.ts\n```"}}
+{"type":"turn.completed","usage":{"input_tokens":32370,"cached_input_tokens":25344,"output_tokens":157,"reasoning_output_tokens":38}}
