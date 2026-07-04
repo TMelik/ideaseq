@@ -4,7 +4,7 @@
 
 Build Ideaseq: a Logseq plugin for brainstorming projects and texts with local AI agents. Ideaseq should let users discuss, develop, rewrite, and structure ideas using the current Logseq graph as context.
 
-The first version should focus on a working Codex MVP. Claude and advanced agent features can be added after the core architecture is stable.
+The first version should focus on a working Codex MVP. Advanced agent features can be added after the core architecture is stable.
 
 ## Recommended Approach
 
@@ -47,7 +47,7 @@ Responsibilities:
 
 Initial settings:
 
-- Provider: `codex` first, `claude` later.
+- Provider: `codex`.
 - CLI path.
 - Model.
 - Sandbox mode.
@@ -61,7 +61,7 @@ Run a separate local Node.js process next to the plugin.
 
 Responsibilities:
 
-- Launch agent CLIs such as `codex` and later `claude`.
+- Launch the Codex CLI.
 - Access the filesystem.
 - Manage subprocesses.
 - Stream agent events back to the Logseq UI.
@@ -86,13 +86,9 @@ interface AgentProvider {
 }
 ```
 
-First provider:
+Provider:
 
 - Codex via `codex exec --json`
-
-Later provider:
-
-- Claude via Claude CLI or Claude Agent SDK, depending on the runtime constraints.
 
 ### 4. Graph Adapter
 
@@ -165,13 +161,7 @@ Possible mention syntax:
 - `@block`
 - `@file`
 
-### Phase 4: Claude Provider
-
-Add Claude support behind the same provider interface.
-
-Keep Claude-specific session and permission logic out of the Logseq UI layer. The bridge should own provider runtime details.
-
-### Phase 5: Advanced Agent Features
+### Phase 4: Advanced Agent Features
 
 Add advanced features only after the MVP is stable:
 
@@ -220,7 +210,7 @@ The main risk is local process execution from the Logseq plugin runtime.
 
 If Logseq does not provide stable direct access to Node.js `child_process` from the plugin UI, the plugin must rely on the local bridge process. This should be treated as the default architecture from the beginning.
 
-The bridge design also makes future provider support cleaner because Codex, Claude, Opencode, and other CLIs can all be implemented behind the same local runtime boundary.
+The bridge design keeps Codex runtime details behind a local boundary and prevents the Logseq UI from depending on CLI process management.
 
 ## Initial Deliverables
 
@@ -256,7 +246,6 @@ ideaseq/
     index.ts
     providers/
       codexProvider.ts
-      claudeProvider.ts
     sessions/
       sessionStore.ts
     runtime/

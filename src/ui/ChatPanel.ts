@@ -1,6 +1,10 @@
 import { checkBridgeHealth, streamAgentEvents } from '../bridgeClient/client';
+import { insertBlockAfter, replaceBlockContent } from '../logseq/blockEditor';
 import { getGraphContext, summarizeContext } from '../logseq/graphAdapter';
 import { getSettings } from '../logseq/settings';
+import { appendAssistantText } from '../shared/agentText';
+import type { EditIntent, PanelOpenOptions } from '../shared/types';
+import { EditPreview } from './EditPreview';
 
 export class ChatPanel {
   private readonly root: HTMLElement;
@@ -15,6 +19,9 @@ export class ChatPanel {
 
   private busy = false;
   private abortController: AbortController | null = null;
+  private intent: EditIntent = 'chat';
+  private targetBlockUuid: string | undefined;
+  private originalText = '';
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -99,6 +106,22 @@ export class ChatPanel {
     void this.refreshContext();
   }
 
+  open(options: PanelOpenOptions = {}): void {
+    this.intent = options.intent ?? 'chat';
+    this.targetBlockUuid = options.targetBlockUuid;
+    this.originalText = options.originalText ?? '';
+    if (options.presetPrompt !== undefined) {
+      this.prompt.value = options.presetPrompt;
+    }
+    this.output.innerHTML = '';
+    this.status.textContent = this.intent === 'chat'
+      ? 'Ready'
+      : this.targetBlockUuid
+        ? 'Ready to generate edit preview.'
+        : 'No current block target.';
+    void this.refreshContext();
+  }
+
   async checkHealth(): Promise<boolean> {
     const settings = getSettings();
     const ok = await checkBridgeHealth(settings.bridgeUrl);
@@ -150,6 +173,56 @@ export class ChatPanel {
     }
   }
 
+  private resetToChat(status: string): void {
+    this.intent = 'chat';
+    this.targetBlockUuid = undefined;
+    this.originalText = '';
+    this.status.textContent = status;
+  }
+
+  private renderEditPreview(generatedText: string): void {
+    if (this.intent !== 'insert-below' && this.intent !== 'rewrite-block') return;
+
+    const targetBlockUuid = this.targetBlockUuid;
+    if (!targetBlockUuid) {
+      this.appendMessage('error', 'No current block target.');
+      this.status.textContent = 'Error';
+      return;
+    }
+
+    const intent = this.intent;
+    new EditPreview({
+      container: this.output,
+      intent,
+      originalText: this.originalText,
+      generatedText,
+      onAccept: async () => {
+        try {
+          if (intent === 'insert-below') {
+            await insertBlockAfter(targetBlockUuid, generatedText);
+          } else {
+            await replaceBlockContent(targetBlockUuid, generatedText);
+          }
+          this.output.innerHTML = '';
+          this.appendMessage('status', intent === 'insert-below' ? 'Inserted below block.' : 'Block rewritten.');
+          this.resetToChat('Applied');
+          await this.refreshContext();
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Unknown edit error';
+          this.appendMessage('error', msg);
+          this.status.textContent = 'Error';
+          throw error;
+        }
+      },
+      onReject: () => {
+        this.output.innerHTML = '';
+        this.appendMessage('status', 'Edit rejected.');
+        this.resetToChat('Rejected');
+      },
+    });
+    this.status.textContent = 'Review generated edit.';
+  }
+
   private async submit(): Promise<void> {
     if (this.busy) return;
 
@@ -165,11 +238,21 @@ export class ChatPanel {
       return;
     }
 
+    const isEditIntent = this.intent === 'insert-below' || this.intent === 'rewrite-block';
+    if (isEditIntent && !this.targetBlockUuid) {
+      this.status.textContent = 'No current block target.';
+      this.output.innerHTML = '';
+      this.appendMessage('error', 'Place the cursor in a Logseq block before using this command.');
+      return;
+    }
+
     this.setBusy(true);
     this.output.innerHTML = '';
     this.status.textContent = 'Sending...';
 
     this.abortController = new AbortController();
+    let generatedText = '';
+    let failed = false;
 
     try {
       const settings = getSettings();
@@ -177,6 +260,7 @@ export class ChatPanel {
       const request = {
         provider: settings.provider,
         prompt,
+        intent: this.intent,
         context,
         settings,
       };
@@ -188,16 +272,34 @@ export class ChatPanel {
         } else if (event.type === 'status') {
           this.appendMessage('status', event.text);
         } else if (event.type === 'message') {
-          this.appendMessage('assistant', event.text);
+          if (isEditIntent) {
+            generatedText = appendAssistantText(generatedText, event.text);
+          } else {
+            this.appendMessage('assistant', event.text);
+          }
         } else if (event.type === 'stderr') {
           this.appendMessage('stderr', event.text);
         } else if (event.type === 'error') {
+          failed = true;
           this.appendMessage('error', event.message);
           this.status.textContent = 'Error';
         } else if (event.type === 'done') {
           const exitText = event.exitCode !== null ? ` (exit ${event.exitCode})` : '';
-          this.appendMessage('status', `Finished${exitText}`);
-          this.status.textContent = 'Ready';
+          if (event.exitCode && event.exitCode !== 0) {
+            failed = true;
+            this.appendMessage('error', `Codex exited with code ${event.exitCode}.`);
+            this.status.textContent = 'Error';
+          } else if (isEditIntent && !failed) {
+            if (generatedText.trim()) {
+              this.renderEditPreview(generatedText);
+            } else {
+              this.appendMessage('error', 'Codex did not return text for the edit preview.');
+              this.status.textContent = 'Error';
+            }
+          } else {
+            this.appendMessage('status', `Finished${exitText}`);
+            this.status.textContent = 'Ready';
+          }
         }
       }
     } catch (error) {

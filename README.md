@@ -22,7 +22,7 @@ Ideaseq is not primarily a coding assistant. It is an agentic brainstorming tool
 - Long-form text development
 - Structured thinking inside Logseq
 
-The first technical milestone is a Codex-backed MVP. Claude and other providers can be added later behind the same provider interface.
+The first technical milestone is a Codex-backed MVP. The current roadmap keeps Codex as the only provider target while the Logseq editing workflow matures.
 
 ## Core Idea
 

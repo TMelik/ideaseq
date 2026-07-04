@@ -158,3 +158,66 @@ body {
   white-space: pre-wrap;
   padding: 6px 0;
 }
+
+.ideaseq-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ideaseq-preview-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ideaseq-preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ideaseq-preview-heading {
+  color: var(--ls-secondary-text-color, #64748b);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.ideaseq-preview-text {
+  box-sizing: border-box;
+  max-height: 190px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--ls-border-color, #d0d7de);
+  border-radius: 6px;
+  background: var(--ls-primary-background-color, #ffffff);
+  color: var(--ls-primary-text-color, #1e293b);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ideaseq-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ideaseq-preview-actions button {
+  border: 1px solid var(--ls-border-color, #d0d7de);
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: var(--ls-secondary-background-color, #f8fafc);
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ideaseq-preview-actions button.primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}

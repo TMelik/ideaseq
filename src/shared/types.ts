@@ -4,6 +4,13 @@ export type ApprovalMode = 'on-request' | 'never';
 
 export type SandboxMode = 'read-only' | 'workspace-write';
 
+export type EditIntent = 'chat' | 'insert-below' | 'rewrite-block';
+
+export interface BlockContext {
+  uuid: string;
+  content: string;
+}
+
 export interface IdeaseqSettings {
   bridgeUrl: string;
   provider: AgentProviderId;
@@ -20,18 +27,25 @@ export interface GraphContext {
     name: string;
     originalName?: string;
   };
-  currentBlock?: {
-    uuid: string;
-    content: string;
-  };
+  currentBlock?: BlockContext;
+  selectedBlocks?: BlockContext[];
+  childBlocks?: BlockContext[];
   selectedText?: string;
 }
 
 export interface AgentRequest {
   provider: AgentProviderId;
   prompt: string;
+  intent?: EditIntent;
   context: GraphContext;
   settings: Pick<IdeaseqSettings, 'codexCommand' | 'model' | 'graphPath' | 'sandbox' | 'approvalMode'>;
+}
+
+export interface PanelOpenOptions {
+  intent?: EditIntent;
+  targetBlockUuid?: string;
+  originalText?: string;
+  presetPrompt?: string;
 }
 
 export type AgentEvent =

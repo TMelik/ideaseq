@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { appendAssistantText } from '../../dist-bridge/src/shared/agentText.js';
 import { buildAgentPrompt } from '../../dist-bridge/src/shared/prompt.js';
 
 const baseRequest = {
@@ -53,4 +54,41 @@ test('includes selected text context', () => {
   });
 
   assert.match(prompt, /Selected text:\nSelected sentence/);
+});
+
+test('includes selected and child block context', () => {
+  const prompt = buildAgentPrompt({
+    ...baseRequest,
+    context: {
+      selectedBlocks: [
+        { uuid: 'selected-1', content: 'First selected block' },
+        { uuid: 'selected-2', content: 'Second selected block' },
+      ],
+      childBlocks: [
+        { uuid: 'child-1', content: 'Child block' },
+      ],
+    },
+  });
+
+  assert.match(prompt, /Selected blocks:\n- First selected block\n- Second selected block/);
+  assert.match(prompt, /Child blocks:\n- Child block/);
+});
+
+test('adds edit output contract for edit intents', () => {
+  const prompt = buildAgentPrompt({
+    ...baseRequest,
+    intent: 'rewrite-block',
+    context: {
+      currentBlock: { uuid: 'block-1', content: 'Original block' },
+    },
+  });
+
+  assert.match(prompt, /Return ONLY the text\/markdown/);
+  assert.match(prompt, /Do not include introductory or concluding remarks/);
+  assert.match(prompt, /Current block:\nOriginal block/);
+});
+
+test('accumulates assistant message text for edit previews', () => {
+  assert.equal(appendAssistantText('', 'First'), 'First');
+  assert.equal(appendAssistantText('First', 'Second'), 'First\n\nSecond');
 });

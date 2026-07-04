@@ -1,10 +1,13 @@
 import '@logseq/libs';
 import './style.css';
 
+import { registerBlockCommands } from './logseq/commands';
 import { registerSettings } from './logseq/settings';
+import type { PanelOpenOptions } from './shared/types';
+import type { ChatPanel } from './ui/ChatPanel';
 
 const MAIN_UI_ID = 'ideaseq-main';
-let panelReady = false;
+let panel: ChatPanel | null = null;
 
 type IdeaseqRuntimeState = {
   bootstrapped?: boolean;
@@ -31,15 +34,16 @@ function ensureAppRoot(): HTMLElement {
   return root;
 }
 
-async function ensurePanel(): Promise<void> {
-  if (panelReady) return;
+async function ensurePanel(): Promise<ChatPanel> {
+  if (panel) return panel;
   const { ChatPanel } = await import('./ui/ChatPanel');
-  new ChatPanel(ensureAppRoot());
-  panelReady = true;
+  panel = new ChatPanel(ensureAppRoot());
+  return panel;
 }
 
-async function showMainUI(): Promise<void> {
-  await ensurePanel();
+async function showMainUI(options?: PanelOpenOptions): Promise<void> {
+  const chatPanel = await ensurePanel();
+  chatPanel.open(options);
   logseq.showMainUI();
 }
 
@@ -51,6 +55,7 @@ async function main(): Promise<void> {
   state.bootstrapped = true;
 
   registerSettings();
+  registerBlockCommands(showMainUI);
 
   logseq.setMainUIInlineStyle({
     position: 'fixed',
