@@ -7,6 +7,7 @@ type SlashCommandArgs = {
 };
 
 type OpenPanel = (options?: PanelOpenOptions) => Promise<void>;
+type Unregister = (() => void) | false;
 
 type LogseqBlock = {
   uuid?: string;
@@ -38,18 +39,36 @@ async function openForBlock(
   });
 }
 
-export function registerBlockCommands(openPanel: OpenPanel): void {
-  logseq.Editor.registerSlashCommand('Ideaseq: Insert below', async (args?: SlashCommandArgs) => {
+export function registerBlockCommands(openPanel: OpenPanel): Array<() => void> {
+  const unregisters: Unregister[] = [];
+
+  unregisters.push(logseq.Editor.registerSlashCommand('Ideaseq: Ask about block', async (args?: SlashCommandArgs) => {
+    await openForBlock(openPanel, args, {
+      intent: 'chat',
+      presetPrompt: 'Explain this block, identify assumptions, and suggest useful next questions.',
+    });
+  }));
+
+  unregisters.push(logseq.Editor.registerSlashCommand('Ideaseq: Brainstorm from block', async (args?: SlashCommandArgs) => {
+    await openForBlock(openPanel, args, {
+      intent: 'chat',
+      presetPrompt: 'Brainstorm concrete ideas, directions, and follow-up blocks based on this block.',
+    });
+  }));
+
+  unregisters.push(logseq.Editor.registerSlashCommand('Ideaseq: Insert below', async (args?: SlashCommandArgs) => {
     await openForBlock(openPanel, args, {
       intent: 'insert-below',
       presetPrompt: 'Generate text to insert below this block.',
     });
-  });
+  }));
 
-  logseq.Editor.registerSlashCommand('Ideaseq: Rewrite block', async (args?: SlashCommandArgs) => {
+  unregisters.push(logseq.Editor.registerSlashCommand('Ideaseq: Rewrite block', async (args?: SlashCommandArgs) => {
     await openForBlock(openPanel, args, {
       intent: 'rewrite-block',
       presetPrompt: 'Rewrite this block while preserving its meaning.',
     });
-  });
+  }));
+
+  return unregisters.filter((unregister): unregister is () => void => typeof unregister === 'function');
 }

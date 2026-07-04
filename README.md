@@ -80,6 +80,8 @@ Run the bridge after building:
 npm run bridge
 ```
 
+Logseq plugins run in an isolated iframe sandbox, so Ideaseq cannot launch this local process directly from the plugin UI yet. When the bridge is offline, the panel shows the manual command and a copy action.
+
 For plugin UI development:
 
 ```bash

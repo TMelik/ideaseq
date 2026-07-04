@@ -11,6 +11,7 @@ let panel: ChatPanel | null = null;
 
 type IdeaseqRuntimeState = {
   bootstrapped?: boolean;
+  unregisters?: Array<() => void>;
 };
 
 const runtimeState = globalThis as typeof globalThis & {
@@ -70,6 +71,20 @@ function getRuntimeState(): IdeaseqRuntimeState {
     runtimeState.__ideaseqRuntimeState__ = {};
   }
   return runtimeState.__ideaseqRuntimeState__;
+}
+
+function registerCleanup(unregisters: Array<() => void>): void {
+  const state = getRuntimeState();
+  state.unregisters = [...(state.unregisters ?? []), ...unregisters];
+}
+
+async function cleanupRuntimeState(): Promise<void> {
+  const state = getRuntimeState();
+  for (const unregister of state.unregisters ?? []) {
+    unregister();
+  }
+  state.unregisters = [];
+  state.bootstrapped = false;
 }
 
 function applyThemeMode(mode: ThemeMode): void {
@@ -413,7 +428,8 @@ async function main(): Promise<void> {
   state.bootstrapped = true;
 
   registerSettings();
-  registerBlockCommands(showMainUI);
+  registerCleanup(registerBlockCommands(showMainUI));
+  logseq.beforeunload(cleanupRuntimeState);
   void syncThemeMode();
   logseq.App.onThemeModeChanged(({ mode }) => {
     applyThemeMode(mode);
@@ -423,7 +439,7 @@ async function main(): Promise<void> {
 
   logseq.setMainUIInlineStyle({
     position: 'fixed',
-    zIndex: 11,
+    zIndex: 4,
     right: '12px',
     left: 'auto',
     top: '48px',
@@ -437,7 +453,7 @@ async function main(): Promise<void> {
 
   logseq.App.registerUIItem('toolbar', {
     key: MAIN_UI_ID,
-    template: '<a class="button" data-on-click="showIdeaseq" title="Ideaseq">Ideas</a>',
+    template: '<a class="button" data-on-click="showIdeaseq" title="Ideaseq" aria-label="Ideaseq"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.74V16h8v-1.26A7 7 0 0 0 12 2z"></path></svg></a>',
   });
 
   logseq.provideModel({
@@ -446,19 +462,26 @@ async function main(): Promise<void> {
     },
   });
 
-  logseq.App.registerCommandPalette(
+  const unregisterOpenCommand = logseq.Commands.register(
+    'open-chat',
     {
-      key: 'ideaseq-open',
-      label: 'Ideaseq: Open chat',
+      title: 'Ideaseq: Open chat',
+      placement: 'palette',
     },
     () => {
       void showMainUI();
     },
   );
+  if (unregisterOpenCommand) {
+    registerCleanup([unregisterOpenCommand]);
+  }
 
-  logseq.Editor.registerSlashCommand('Ideaseq brainstorm', async () => {
+  const unregisterBrainstormCommand = logseq.Editor.registerSlashCommand('Ideaseq brainstorm', async () => {
     await showMainUI();
   });
+  if (unregisterBrainstormCommand) {
+    registerCleanup([unregisterBrainstormCommand]);
+  }
 }
 
 logseq.ready(main).catch((error) => {

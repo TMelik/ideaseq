@@ -16,6 +16,7 @@ export class ChatPanel {
   private readonly sendBtn: HTMLButtonElement;
   private readonly stopBtn: HTMLButtonElement;
   private readonly refreshBtn: HTMLButtonElement;
+  private readonly copyBridgeCommandBtn: HTMLButtonElement;
 
   private busy = false;
   private abortController: AbortController | null = null;
@@ -39,7 +40,23 @@ export class ChatPanel {
     this.healthIndicator.className = 'ideaseq-health-indicator offline';
     this.healthIndicator.textContent = 'Offline';
 
-    header.append(title, this.healthIndicator);
+    const headerActions = document.createElement('div');
+    headerActions.className = 'ideaseq-header-actions';
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'ideaseq-close-button';
+    closeButton.title = 'Close Ideaseq';
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', () => {
+      if (this.busy) {
+        this.cancel();
+      }
+      logseq.hideMainUI();
+    });
+
+    headerActions.append(this.healthIndicator, closeButton);
+    header.append(title, headerActions);
 
     this.context = document.createElement('div');
     this.context.className = 'ideaseq-context';
@@ -76,7 +93,13 @@ export class ChatPanel {
     this.refreshBtn.textContent = 'Refresh context';
     this.refreshBtn.addEventListener('click', () => void this.refreshContext());
 
-    actions.append(this.refreshBtn, this.stopBtn, this.sendBtn);
+    this.copyBridgeCommandBtn = document.createElement('button');
+    this.copyBridgeCommandBtn.type = 'button';
+    this.copyBridgeCommandBtn.textContent = 'Copy bridge command';
+    this.copyBridgeCommandBtn.style.display = 'none';
+    this.copyBridgeCommandBtn.addEventListener('click', () => void this.copyBridgeCommand());
+
+    actions.append(this.copyBridgeCommandBtn, this.refreshBtn, this.stopBtn, this.sendBtn);
 
     this.status = document.createElement('div');
     this.status.className = 'ideaseq-status';
@@ -102,7 +125,6 @@ export class ChatPanel {
       }
     });
 
-    void this.checkHealth();
     void this.refreshContext();
   }
 
@@ -114,11 +136,16 @@ export class ChatPanel {
       this.prompt.value = options.presetPrompt;
     }
     this.output.innerHTML = '';
-    this.status.textContent = this.intent === 'chat'
-      ? 'Ready'
-      : this.targetBlockUuid
+    if (this.intent === 'chat') {
+      this.status.textContent = 'Ready';
+      if (options.targetBlockUuid === undefined && options.originalText !== undefined) {
+        this.appendMessage('error', 'Place the cursor in a Logseq block before using this command.');
+      }
+    } else {
+      this.status.textContent = this.targetBlockUuid
         ? 'Ready to generate edit preview.'
         : 'No current block target.';
+    }
     void this.refreshContext();
   }
 
@@ -129,10 +156,16 @@ export class ChatPanel {
       this.healthIndicator.className = 'ideaseq-health-indicator online';
       this.healthIndicator.textContent = 'Online';
       this.sendBtn.removeAttribute('disabled');
+      this.copyBridgeCommandBtn.style.display = 'none';
+      if (this.status.textContent?.startsWith('Bridge offline')) {
+        this.status.textContent = 'Ready';
+      }
     } else {
       this.healthIndicator.className = 'ideaseq-health-indicator offline';
       this.healthIndicator.textContent = 'Offline';
       this.sendBtn.setAttribute('disabled', 'true');
+      this.copyBridgeCommandBtn.style.display = 'inline-block';
+      this.status.textContent = 'Bridge offline. Run npm run bridge, then refresh.';
     }
     return ok;
   }
@@ -158,11 +191,21 @@ export class ChatPanel {
     }
   }
 
+  private async copyBridgeCommand(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText('npm run bridge');
+      this.status.textContent = 'Copied: npm run bridge';
+    } catch {
+      this.status.textContent = 'Bridge command: npm run bridge';
+    }
+  }
+
   private setBusy(busy: boolean): void {
     this.busy = busy;
     if (busy) {
       this.sendBtn.style.display = 'none';
       this.refreshBtn.style.display = 'none';
+      this.copyBridgeCommandBtn.style.display = 'none';
       this.stopBtn.style.display = 'inline-block';
       this.prompt.setAttribute('disabled', 'true');
     } else {
@@ -170,6 +213,7 @@ export class ChatPanel {
       this.refreshBtn.style.display = 'inline-block';
       this.stopBtn.style.display = 'none';
       this.prompt.removeAttribute('disabled');
+      void this.checkHealth();
     }
   }
 

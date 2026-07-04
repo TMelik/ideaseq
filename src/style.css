@@ -8,27 +8,74 @@ body {
 }
 
 .ideaseq {
+  --ideaseq-bg: var(--ls-primary-background-color, #ffffff);
+  --ideaseq-surface: var(--ls-secondary-background-color, #f8fafc);
+  --ideaseq-text: var(--ls-primary-text-color, #1f2933);
+  --ideaseq-muted: var(--ls-secondary-text-color, #52616b);
+  --ideaseq-border: var(--ls-border-color, #d0d7de);
+  --ideaseq-hover: var(--ls-tertiary-background-color, var(--ls-secondary-background-color, #eef2f7));
+  --ideaseq-accent: var(--ls-link-text-color, var(--ls-active-primary-color, #2563eb));
+  --ideaseq-accent-text: var(--ls-primary-background-color, #ffffff);
+  --ideaseq-success-bg: var(--ls-success-background-color, var(--ls-tertiary-background-color, #dcfce7));
+  --ideaseq-success-text: var(--ls-success-text-color, var(--ls-primary-text-color, #166534));
+  --ideaseq-error-bg: var(--ls-error-background-color, var(--ls-tertiary-background-color, #fee2e2));
+  --ideaseq-error-text: var(--ls-error-text-color, var(--ls-primary-text-color, #991b1b));
+  --ideaseq-warning-bg: var(--ls-warning-background-color, var(--ls-tertiary-background-color, #fffbeb));
+  --ideaseq-warning-text: var(--ls-warning-text-color, var(--ls-primary-text-color, #92400e));
+
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 100vh;
   padding: 12px;
-  background: var(--ls-primary-background-color, #ffffff);
-  color: var(--ls-primary-text-color, #1f2933);
+  background: var(--ideaseq-bg);
+  color: var(--ideaseq-text);
+}
+
+:root[data-theme="dark"] .ideaseq {
+  --ideaseq-bg: var(--ls-primary-background-color, #1f2430);
+  --ideaseq-surface: var(--ls-secondary-background-color, #252b38);
+  --ideaseq-text: var(--ls-primary-text-color, #e5e7eb);
+  --ideaseq-muted: var(--ls-secondary-text-color, #aab2c0);
+  --ideaseq-border: var(--ls-border-color, #3a4252);
+  --ideaseq-hover: var(--ls-tertiary-background-color, #303747);
+  --ideaseq-accent: var(--ls-link-text-color, var(--ls-active-primary-color, #8ab4f8));
+  --ideaseq-accent-text: var(--ls-primary-background-color, #10131a);
+  --ideaseq-success-bg: var(--ls-success-background-color, #123524);
+  --ideaseq-success-text: var(--ls-success-text-color, #8fd6aa);
+  --ideaseq-error-bg: var(--ls-error-background-color, #3b1f24);
+  --ideaseq-error-text: var(--ls-error-text-color, #f4a5ad);
+  --ideaseq-warning-bg: var(--ls-warning-background-color, #342b16);
+  --ideaseq-warning-text: var(--ls-warning-text-color, #e8c978);
+}
+
+:root[data-theme="light"] .ideaseq {
+  --ideaseq-bg: var(--ls-primary-background-color, #ffffff);
+  --ideaseq-surface: var(--ls-secondary-background-color, #f8fafc);
+  --ideaseq-text: var(--ls-primary-text-color, #1f2933);
+  --ideaseq-muted: var(--ls-secondary-text-color, #52616b);
+  --ideaseq-border: var(--ls-border-color, #d0d7de);
+  --ideaseq-hover: var(--ls-tertiary-background-color, #eef2f7);
 }
 
 .ideaseq-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--ls-border-color, #e2e8f0);
+  border-bottom: 1px solid var(--ideaseq-border);
   padding-bottom: 8px;
 }
 
 .ideaseq-title {
   font-size: 16px;
   font-weight: 650;
+}
+
+.ideaseq-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .ideaseq-health-indicator {
@@ -39,19 +86,40 @@ body {
   text-transform: uppercase;
 }
 
+.ideaseq-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--ideaseq-border);
+  border-radius: 6px;
+  background: var(--ideaseq-surface);
+  color: var(--ideaseq-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ideaseq-close-button:hover {
+  background: var(--ideaseq-hover);
+  color: var(--ideaseq-text);
+}
+
 .ideaseq-health-indicator.online {
-  background-color: var(--ls-success-background-color, #dcfce7);
-  color: var(--ls-success-text-color, #166534);
+  background-color: var(--ideaseq-success-bg);
+  color: var(--ideaseq-success-text);
 }
 
 .ideaseq-health-indicator.offline {
-  background-color: var(--ls-error-background-color, #fee2e2);
-  color: var(--ls-error-text-color, #991b1b);
+  background-color: var(--ideaseq-error-bg);
+  color: var(--ideaseq-error-text);
 }
 
 .ideaseq-context,
 .ideaseq-status {
-  color: var(--ls-secondary-text-color, #52616b);
+  color: var(--ideaseq-muted);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -60,10 +128,10 @@ body {
   box-sizing: border-box;
   width: 100%;
   resize: vertical;
-  border: 1px solid var(--ls-border-color, #d0d7de);
+  border: 1px solid var(--ideaseq-border);
   border-radius: 6px;
   padding: 8px;
-  background: var(--ls-secondary-background-color, #f8fafc);
+  background: var(--ideaseq-surface);
   color: inherit;
   font: inherit;
   line-height: 1.4;
@@ -76,19 +144,24 @@ body {
 
 .ideaseq-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }
 
 .ideaseq-actions button {
-  border: 1px solid var(--ls-border-color, #d0d7de);
+  border: 1px solid var(--ideaseq-border);
   border-radius: 6px;
   padding: 6px 12px;
-  background: var(--ls-secondary-background-color, #f8fafc);
+  background: var(--ideaseq-surface);
   color: inherit;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
+}
+
+.ideaseq-actions button:hover:not([disabled]) {
+  background: var(--ideaseq-hover);
 }
 
 .ideaseq-actions button[disabled] {
@@ -97,31 +170,31 @@ body {
 }
 
 .ideaseq-actions button.stop-button {
-  background-color: #fee2e2;
-  color: #991b1b;
-  border-color: #fca5a5;
+  background-color: var(--ideaseq-error-bg);
+  color: var(--ideaseq-error-text);
+  border-color: var(--ideaseq-error-text);
 }
 
 .ideaseq-actions button.stop-button:hover {
-  background-color: #fecaca;
+  background-color: var(--ideaseq-error-bg);
 }
 
 .ideaseq-output {
   flex: 1;
   min-height: 220px;
   overflow: auto;
-  border: 1px solid var(--ls-border-color, #d0d7de);
+  border: 1px solid var(--ideaseq-border);
   border-radius: 6px;
   margin: 0;
   padding: 10px;
-  background: var(--ls-secondary-background-color, #f8fafc);
+  background: var(--ideaseq-surface);
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .msg-status {
-  color: var(--ls-secondary-text-color, #64748b);
+  color: var(--ideaseq-muted);
   font-style: italic;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -132,27 +205,27 @@ body {
 }
 
 .msg-stderr {
-  color: #b45309;
+  color: var(--ideaseq-warning-text);
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   white-space: pre-wrap;
-  background: #fffbeb;
+  background: var(--ideaseq-warning-bg);
   padding: 4px;
   border-radius: 4px;
 }
 
 .msg-error {
-  color: #991b1b;
-  background-color: #fee2e2;
+  color: var(--ideaseq-error-text);
+  background-color: var(--ideaseq-error-bg);
   padding: 8px;
   border-radius: 6px;
   font-weight: 600;
   font-size: 12px;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--ideaseq-error-text);
 }
 
 .msg-assistant {
-  color: var(--ls-primary-text-color, #1e293b);
+  color: var(--ideaseq-text);
   font-size: 13px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -177,7 +250,7 @@ body {
 }
 
 .ideaseq-preview-heading {
-  color: var(--ls-secondary-text-color, #64748b);
+  color: var(--ideaseq-muted);
   font-size: 11px;
   font-weight: 650;
   text-transform: uppercase;
@@ -189,10 +262,10 @@ body {
   overflow: auto;
   margin: 0;
   padding: 8px;
-  border: 1px solid var(--ls-border-color, #d0d7de);
+  border: 1px solid var(--ideaseq-border);
   border-radius: 6px;
-  background: var(--ls-primary-background-color, #ffffff);
-  color: var(--ls-primary-text-color, #1e293b);
+  background: var(--ideaseq-bg);
+  color: var(--ideaseq-text);
   font: inherit;
   font-size: 12px;
   line-height: 1.45;
@@ -206,18 +279,22 @@ body {
 }
 
 .ideaseq-preview-actions button {
-  border: 1px solid var(--ls-border-color, #d0d7de);
+  border: 1px solid var(--ideaseq-border);
   border-radius: 6px;
   padding: 6px 12px;
-  background: var(--ls-secondary-background-color, #f8fafc);
+  background: var(--ideaseq-surface);
   color: inherit;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
 }
 
+.ideaseq-preview-actions button:hover:not([disabled]) {
+  background: var(--ideaseq-hover);
+}
+
 .ideaseq-preview-actions button.primary {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #ffffff;
+  border-color: var(--ideaseq-accent);
+  background: var(--ideaseq-accent);
+  color: var(--ideaseq-accent-text);
 }
