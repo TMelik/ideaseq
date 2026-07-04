@@ -1,9 +1,28 @@
-import { checkBridgeHealth, streamAgentEvents } from '../bridgeClient/client';
-import { insertBlockAfter, replaceBlockContent } from '../logseq/blockEditor';
-import { getGraphContext, summarizeContext } from '../logseq/graphAdapter';
+import {
+  checkBridgeHealth,
+  getAgentSession,
+  listAgentSessions,
+  readGraphFile,
+  streamAgentEvents,
+} from '../bridgeClient/client';
+import {
+  insertBlockAfter,
+  replaceBlockContent,
+  replaceBlocks,
+  replaceSelectedTextInBlock,
+} from '../logseq/blockEditor';
+import { getGraphContext, getPageAttachment, summarizeContext } from '../logseq/graphAdapter';
 import { getSettings } from '../logseq/settings';
 import { appendAssistantText } from '../shared/agentText';
-import type { EditIntent, PanelOpenOptions } from '../shared/types';
+import type {
+  AgentEvent,
+  AgentSessionSummary,
+  BlockContext,
+  ContextAttachment,
+  EditIntent,
+  GraphContext,
+  PanelOpenOptions,
+} from '../shared/types';
 import { EditPreview } from './EditPreview';
 
 function shellQuote(value: string): string {
@@ -41,10 +60,14 @@ export class ChatPanel {
   private readonly output: HTMLDivElement;
   private readonly status: HTMLElement;
   private readonly context: HTMLElement;
+  private readonly contextList: HTMLElement;
   private readonly healthIndicator: HTMLElement;
   private readonly sendBtn: HTMLButtonElement;
   private readonly stopBtn: HTMLButtonElement;
   private readonly refreshBtn: HTMLButtonElement;
+  private readonly sessionSelect: HTMLSelectElement;
+  private readonly contextModeSelect: HTMLSelectElement;
+  private readonly newSessionBtn: HTMLButtonElement;
   private readonly copyBridgeCommandBtn: HTMLButtonElement;
 
   private busy = false;
@@ -52,6 +75,11 @@ export class ChatPanel {
   private intent: EditIntent = 'chat';
   private targetBlockUuid: string | undefined;
   private originalText = '';
+  private sessionId: string | undefined;
+  private contextMode: 'follow' | 'locked' = 'follow';
+  private lastContext: GraphContext = {};
+  private autoAttachments: ContextAttachment[] = [];
+  private manualAttachments: ContextAttachment[] = [];
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -91,6 +119,9 @@ export class ChatPanel {
     this.context.className = 'ideaseq-context';
     this.context.textContent = 'Loading context...';
 
+    this.contextList = document.createElement('div');
+    this.contextList.className = 'ideaseq-context-list';
+
     this.prompt = document.createElement('textarea');
     this.prompt.className = 'ideaseq-prompt';
     this.prompt.placeholder = 'Brainstorm, develop, or rewrite with the current Logseq context...\n(Ctrl+Enter to send)';
@@ -104,6 +135,46 @@ export class ChatPanel {
 
     const actions = document.createElement('div');
     actions.className = 'ideaseq-actions';
+
+    this.sessionSelect = document.createElement('select');
+    this.sessionSelect.className = 'ideaseq-session-select';
+    this.sessionSelect.title = 'Session history';
+    this.sessionSelect.addEventListener('change', () => void this.openSelectedSession());
+
+    this.contextModeSelect = document.createElement('select');
+    this.contextModeSelect.className = 'ideaseq-mode-select';
+    this.contextModeSelect.title = 'Page context mode';
+    const followOption = document.createElement('option');
+    followOption.value = 'follow';
+    followOption.textContent = 'Follow page';
+    const lockedOption = document.createElement('option');
+    lockedOption.value = 'locked';
+    lockedOption.textContent = 'Lock page';
+    this.contextModeSelect.append(followOption, lockedOption);
+    this.contextModeSelect.value = this.contextMode;
+    this.contextModeSelect.addEventListener('change', () => {
+      this.contextMode = this.contextModeSelect.value === 'locked' ? 'locked' : 'follow';
+      this.status.textContent = this.contextMode === 'follow'
+        ? 'Following current page.'
+        : 'Page context locked.';
+      if (this.contextMode === 'follow') {
+        void this.refreshContext();
+      } else {
+        this.renderContextSummary();
+        this.renderContextList();
+      }
+    });
+
+    this.newSessionBtn = document.createElement('button');
+    this.newSessionBtn.type = 'button';
+    this.newSessionBtn.textContent = 'New';
+    this.newSessionBtn.title = 'Start a new session';
+    this.newSessionBtn.addEventListener('click', () => {
+      this.sessionId = undefined;
+      this.output.innerHTML = '';
+      this.status.textContent = 'New session';
+      this.sessionSelect.value = '';
+    });
 
     this.sendBtn = document.createElement('button');
     this.sendBtn.type = 'button';
@@ -119,7 +190,8 @@ export class ChatPanel {
 
     this.refreshBtn = document.createElement('button');
     this.refreshBtn.type = 'button';
-    this.refreshBtn.textContent = 'Refresh context';
+    this.refreshBtn.textContent = 'Reload context';
+    this.refreshBtn.title = 'Reload the current Logseq context';
     this.refreshBtn.addEventListener('click', () => void this.refreshContext());
 
     this.copyBridgeCommandBtn = document.createElement('button');
@@ -128,7 +200,22 @@ export class ChatPanel {
     this.copyBridgeCommandBtn.style.display = 'none';
     this.copyBridgeCommandBtn.addEventListener('click', () => void this.copyBridgeCommand());
 
-    actions.append(this.copyBridgeCommandBtn, this.refreshBtn, this.stopBtn, this.sendBtn);
+    const attachPageBtn = document.createElement('button');
+    attachPageBtn.type = 'button';
+    attachPageBtn.textContent = '+Page';
+    attachPageBtn.title = 'Attach current page';
+    attachPageBtn.addEventListener('click', () => this.attachCurrentPage());
+
+    actions.append(
+      this.sessionSelect,
+      this.contextModeSelect,
+      this.newSessionBtn,
+      attachPageBtn,
+      this.copyBridgeCommandBtn,
+      this.refreshBtn,
+      this.stopBtn,
+      this.sendBtn,
+    );
 
     this.status = document.createElement('div');
     this.status.className = 'ideaseq-status';
@@ -137,7 +224,7 @@ export class ChatPanel {
     this.output = document.createElement('div');
     this.output.className = 'ideaseq-output';
 
-    this.root.append(header, this.context, this.prompt, actions, this.status, this.output);
+    this.root.append(header, this.context, this.contextList, this.prompt, actions, this.status, this.output);
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -170,6 +257,8 @@ export class ChatPanel {
       if (options.targetBlockUuid === undefined && options.originalText !== undefined) {
         this.appendMessage('error', 'Place the cursor in a Logseq block before using this command.');
       }
+    } else if (this.intent === 'rewrite-selected-blocks') {
+      this.status.textContent = 'Ready to generate selected blocks edit preview.';
     } else {
       this.status.textContent = this.targetBlockUuid
         ? 'Ready to generate edit preview.'
@@ -189,6 +278,7 @@ export class ChatPanel {
       if (this.status.textContent?.startsWith('Bridge offline')) {
         this.status.textContent = 'Ready';
       }
+      void this.loadSessionList();
     } else {
       this.healthIndicator.className = 'ideaseq-health-indicator offline';
       this.healthIndicator.textContent = 'Offline';
@@ -200,8 +290,30 @@ export class ChatPanel {
   }
 
   async refreshContext(): Promise<void> {
-    this.context.textContent = summarizeContext(await getGraphContext());
+    await this.updateContextFromLogseq();
+    this.renderContextSummary();
+    this.renderContextList();
     void this.checkHealth();
+  }
+
+  async handleRouteChanged(): Promise<void> {
+    if (this.contextMode !== 'follow') {
+      this.renderContextSummary();
+      this.renderContextList();
+      return;
+    }
+    await this.refreshContext();
+  }
+
+  private async updateContextFromLogseq(): Promise<GraphContext> {
+    this.lastContext = await getGraphContext();
+    this.autoAttachments = await this.buildAutoAttachments(this.lastContext);
+    return this.lastContext;
+  }
+
+  private renderContextSummary(): void {
+    const prefix = this.contextMode === 'follow' ? 'Follow page' : 'Locked page';
+    this.context.textContent = `${prefix}: ${summarizeContext(this.withAttachments(this.lastContext, []))}`;
   }
 
   private appendMessage(type: string, text: string): void {
@@ -210,6 +322,217 @@ export class ChatPanel {
     el.textContent = text;
     this.output.append(el);
     this.output.scrollTop = this.output.scrollHeight;
+  }
+
+  private appendTool(tool: Extract<AgentEvent, { type: 'tool' }>['tool']): void {
+    const el = document.createElement('details');
+    el.className = 'msg-tool';
+    el.open = tool.phase === 'started';
+
+    const summary = document.createElement('summary');
+    const exitText = tool.exitCode !== undefined && tool.exitCode !== null ? ` exit ${tool.exitCode}` : '';
+    summary.textContent = `${tool.phase === 'started' ? 'Running' : 'Finished'}: ${tool.command}${exitText}`;
+    el.append(summary);
+
+    if (tool.output) {
+      const pre = document.createElement('pre');
+      pre.textContent = tool.output;
+      el.append(pre);
+    }
+
+    this.output.append(el);
+    this.output.scrollTop = this.output.scrollHeight;
+  }
+
+  private renderContextList(extraAttachments: ContextAttachment[] = []): void {
+    this.contextList.innerHTML = '';
+    const attachments = [...this.autoAttachments, ...this.manualAttachments, ...extraAttachments];
+    if (attachments.length === 0) {
+      this.contextList.textContent = 'No active context. Use buttons or @page(...), @block(...), @file(...).';
+      return;
+    }
+
+    for (const attachment of attachments) {
+      const item = document.createElement('span');
+      item.className = 'ideaseq-context-item';
+      const isAuto = this.autoAttachments.some((auto) => auto.id === attachment.id);
+      const prefix = isAuto ? (this.contextMode === 'follow' ? 'auto ' : 'locked ') : '';
+      item.textContent = `${prefix}${attachment.kind}: ${attachment.label}`;
+
+      if (this.manualAttachments.some((manual) => manual.id === attachment.id)) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = '×';
+        remove.title = 'Detach context';
+        remove.addEventListener('click', () => {
+          this.manualAttachments = this.manualAttachments.filter((manual) => manual.id !== attachment.id);
+          this.renderContextList(extraAttachments);
+        });
+        item.append(remove);
+      }
+
+      this.contextList.append(item);
+    }
+  }
+
+  private withAttachments(context: GraphContext, mentionAttachments: ContextAttachment[]): GraphContext {
+    const seen = new Set<string>();
+    const attachments = [...this.autoAttachments, ...this.manualAttachments, ...mentionAttachments].filter((attachment) => {
+      if (seen.has(attachment.id)) return false;
+      seen.add(attachment.id);
+      return true;
+    });
+    return attachments.length > 0 ? { ...context, attachments } : context;
+  }
+
+  private async buildAutoAttachments(context: GraphContext): Promise<ContextAttachment[]> {
+    const pageName = context.currentPage?.name;
+    if (!pageName) return [];
+    return [await getPageAttachment(pageName)];
+  }
+
+  private async attachCurrentPage(): Promise<void> {
+    const context = await getGraphContext();
+    const page = context.currentPage;
+    if (!page?.name) {
+      this.status.textContent = 'No current page to attach.';
+      return;
+    }
+    this.addManualAttachment(await getPageAttachment(page.name));
+  }
+
+  private addManualAttachment(attachment: ContextAttachment): void {
+    this.manualAttachments = [
+      ...this.manualAttachments.filter((existing) => existing.id !== attachment.id),
+      attachment,
+    ];
+    this.renderContextList();
+    this.status.textContent = 'Context attached.';
+  }
+
+  private async resolveMentionAttachments(prompt: string, context: GraphContext): Promise<ContextAttachment[]> {
+    const attachments: ContextAttachment[] = [];
+    const settings = getSettings();
+    const graphPath = settings.graphPath || context.graphPath;
+
+    for (const match of prompt.matchAll(/@page\(([^)]+)\)/g)) {
+      const name = match[1].trim();
+      if (name) {
+        const attachment = await getPageAttachment(name);
+        attachments.push({ ...attachment, id: `mention:page:${name}` });
+      }
+    }
+
+    for (const match of prompt.matchAll(/@block\(([^)]+)\)/g)) {
+      const uuid = match[1].trim();
+      if (!uuid) continue;
+      const block = await logseq.Editor.getBlock(uuid).catch(() => null) as BlockContext | null;
+      attachments.push({
+        id: `mention:block:${uuid}`,
+        kind: 'block',
+        label: uuid,
+        uuid,
+        content: block?.content,
+      });
+    }
+
+    for (const match of prompt.matchAll(/@file\(([^)]+)\)/g)) {
+      const path = match[1].trim();
+      if (!path || !graphPath) continue;
+      const content = await readGraphFile(settings.bridgeUrl, graphPath, path);
+      attachments.push({
+        id: `mention:file:${path}`,
+        kind: 'file',
+        label: path,
+        path,
+        content: content ?? undefined,
+      });
+    }
+
+    return attachments;
+  }
+
+  private async loadSessionList(): Promise<void> {
+    const settings = getSettings();
+    const graphPath = settings.graphPath || this.lastContext.graphPath;
+    const sessions = await listAgentSessions(settings.bridgeUrl, graphPath);
+    this.renderSessionOptions(sessions);
+  }
+
+  private renderSessionOptions(sessions: AgentSessionSummary[]): void {
+    const currentValue = this.sessionId ?? '';
+    this.sessionSelect.innerHTML = '';
+
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'New session';
+    this.sessionSelect.append(blank);
+
+    for (const session of sessions) {
+      const option = document.createElement('option');
+      option.value = session.id;
+      option.textContent = `${session.title} (${session.turnCount})`;
+      this.sessionSelect.append(option);
+    }
+
+    this.sessionSelect.value = currentValue;
+  }
+
+  private async openSelectedSession(): Promise<void> {
+    const id = this.sessionSelect.value;
+    if (!id) {
+      this.sessionId = undefined;
+      this.output.innerHTML = '';
+      return;
+    }
+
+    const settings = getSettings();
+    const session = await getAgentSession(settings.bridgeUrl, id, settings.graphPath || this.lastContext.graphPath);
+    if (!session) {
+      this.status.textContent = 'Session not found.';
+      return;
+    }
+
+    this.sessionId = session.id;
+    this.output.innerHTML = '';
+    for (const turn of session.turns) {
+      this.appendMessage('user', turn.prompt);
+      for (const event of turn.events) {
+        this.renderEvent(event, false);
+      }
+    }
+    this.status.textContent = `Loaded session: ${session.title}`;
+  }
+
+  private renderEvent(event: AgentEvent, collectAssistant: boolean): string {
+    let generatedText = '';
+    if (event.type === 'start') {
+      this.status.textContent = `Running on ${event.provider}...`;
+      this.appendMessage('status', `Started ${event.provider}`);
+    } else if (event.type === 'session') {
+      this.sessionId = event.session.id;
+      this.sessionSelect.value = event.session.id;
+    } else if (event.type === 'status') {
+      this.appendMessage('status', event.text);
+    } else if (event.type === 'tool') {
+      this.appendTool(event.tool);
+    } else if (event.type === 'message') {
+      if (collectAssistant) {
+        generatedText = event.text;
+      } else {
+        this.appendMessage('assistant', event.text);
+      }
+    } else if (event.type === 'stderr') {
+      this.appendMessage('stderr', event.text);
+    } else if (event.type === 'error') {
+      this.appendMessage('error', event.message);
+      this.status.textContent = 'Error';
+    } else if (event.type === 'done') {
+      const exitText = event.exitCode !== null ? ` (exit ${event.exitCode})` : '';
+      this.appendMessage('status', `Finished${exitText}`);
+      this.status.textContent = 'Ready';
+    }
+    return generatedText;
   }
 
   private cancel(): void {
@@ -254,8 +577,107 @@ export class ChatPanel {
     this.status.textContent = status;
   }
 
+  private isEditIntent(): boolean {
+    return this.intent === 'insert-below'
+      || this.intent === 'rewrite-block'
+      || this.intent === 'rewrite-selection'
+      || this.intent === 'rewrite-selected-blocks';
+  }
+
+  private parseBatchEdit(generatedText: string): Array<{ uuid: string; content: string }> {
+    const parsed = JSON.parse(generatedText) as { blocks?: Array<{ uuid?: unknown; content?: unknown }> };
+    if (!Array.isArray(parsed.blocks)) {
+      throw new Error('Batch edit response must contain a blocks array.');
+    }
+    return parsed.blocks.map((block) => {
+      if (typeof block.uuid !== 'string' || typeof block.content !== 'string') {
+        throw new Error('Every batch edit block must include uuid and content strings.');
+      }
+      return { uuid: block.uuid, content: block.content };
+    });
+  }
+
+  private renderBatchEditPreview(generatedText: string): void {
+    let blocks: Array<{ uuid: string; content: string }>;
+    try {
+      blocks = this.parseBatchEdit(generatedText);
+    } catch (error) {
+      this.appendMessage('error', error instanceof Error ? error.message : 'Invalid batch edit response.');
+      this.status.textContent = 'Error';
+      return;
+    }
+
+    this.output.innerHTML = '';
+    const root = document.createElement('div');
+    root.className = 'ideaseq-preview';
+
+    const title = document.createElement('div');
+    title.className = 'ideaseq-preview-title';
+    title.textContent = `Selected blocks preview (${blocks.length})`;
+    root.append(title);
+
+    for (const block of blocks) {
+      const section = document.createElement('section');
+      section.className = 'ideaseq-preview-section';
+
+      const heading = document.createElement('div');
+      heading.className = 'ideaseq-preview-heading';
+      heading.textContent = block.uuid;
+
+      const body = document.createElement('pre');
+      body.className = 'ideaseq-preview-text';
+      body.textContent = block.content;
+
+      section.append(heading, body);
+      root.append(section);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'ideaseq-preview-actions';
+
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.textContent = 'Reject';
+    reject.addEventListener('click', () => {
+      this.output.innerHTML = '';
+      this.appendMessage('status', 'Edit rejected.');
+      this.resetToChat('Rejected');
+    });
+
+    const accept = document.createElement('button');
+    accept.type = 'button';
+    accept.textContent = 'Accept';
+    accept.className = 'primary';
+    accept.addEventListener('click', async () => {
+      accept.disabled = true;
+      reject.disabled = true;
+      try {
+        await replaceBlocks(blocks);
+        this.output.innerHTML = '';
+        this.appendMessage('status', 'Selected blocks rewritten.');
+        this.resetToChat('Applied');
+        await this.refreshContext();
+      } catch (error) {
+        accept.disabled = false;
+        reject.disabled = false;
+        this.appendMessage('error', error instanceof Error ? error.message : 'Unknown batch edit error');
+        this.status.textContent = 'Error';
+      }
+    });
+
+    actions.append(reject, accept);
+    root.append(actions);
+    this.output.append(root);
+    this.status.textContent = 'Review generated edit.';
+  }
+
   private renderEditPreview(generatedText: string): void {
-    if (this.intent !== 'insert-below' && this.intent !== 'rewrite-block') return;
+    if (!this.isEditIntent()) return;
+
+    if (this.intent === 'rewrite-selected-blocks') {
+      this.renderBatchEditPreview(generatedText);
+      return;
+    }
 
     const targetBlockUuid = this.targetBlockUuid;
     if (!targetBlockUuid) {
@@ -265,6 +687,9 @@ export class ChatPanel {
     }
 
     const intent = this.intent;
+    if (intent !== 'insert-below' && intent !== 'rewrite-block' && intent !== 'rewrite-selection') {
+      return;
+    }
     new EditPreview({
       container: this.output,
       intent,
@@ -274,11 +699,22 @@ export class ChatPanel {
         try {
           if (intent === 'insert-below') {
             await insertBlockAfter(targetBlockUuid, generatedText);
+          } else if (intent === 'rewrite-selection') {
+            await replaceSelectedTextInBlock(
+              targetBlockUuid,
+              this.originalText,
+              this.lastContext.selectedText ?? '',
+              generatedText,
+            );
           } else {
             await replaceBlockContent(targetBlockUuid, generatedText);
           }
           this.output.innerHTML = '';
-          this.appendMessage('status', intent === 'insert-below' ? 'Inserted below block.' : 'Block rewritten.');
+          this.appendMessage('status', intent === 'insert-below'
+            ? 'Inserted below block.'
+            : intent === 'rewrite-selection'
+              ? 'Selected text rewritten.'
+              : 'Block rewritten.');
           this.resetToChat('Applied');
           await this.refreshContext();
         } catch (error) {
@@ -312,11 +748,28 @@ export class ChatPanel {
       return;
     }
 
-    const isEditIntent = this.intent === 'insert-below' || this.intent === 'rewrite-block';
-    if (isEditIntent && !this.targetBlockUuid) {
+    const isEditIntent = this.isEditIntent();
+    if ((this.intent === 'insert-below' || this.intent === 'rewrite-block' || this.intent === 'rewrite-selection') && !this.targetBlockUuid) {
       this.status.textContent = 'No current block target.';
       this.output.innerHTML = '';
       this.appendMessage('error', 'Place the cursor in a Logseq block before using this command.');
+      return;
+    }
+
+    const context = this.contextMode === 'follow'
+      ? await this.updateContextFromLogseq()
+      : this.lastContext;
+    this.renderContextSummary();
+    if (this.intent === 'rewrite-selection' && !context.selectedText) {
+      this.status.textContent = 'No selected text.';
+      this.output.innerHTML = '';
+      this.appendMessage('error', 'Select text inside the current Logseq block before using this command.');
+      return;
+    }
+    if (this.intent === 'rewrite-selected-blocks' && !context.selectedBlocks?.length) {
+      this.status.textContent = 'No selected blocks.';
+      this.output.innerHTML = '';
+      this.appendMessage('error', 'Select one or more Logseq blocks before using this command.');
       return;
     }
 
@@ -330,33 +783,27 @@ export class ChatPanel {
 
     try {
       const settings = getSettings();
-      const context = await getGraphContext();
+      const mentionAttachments = await this.resolveMentionAttachments(prompt, context);
+      this.renderContextList(mentionAttachments);
       const request = {
+        sessionId: this.sessionId,
         provider: settings.provider,
         prompt,
         intent: this.intent,
-        context,
+        context: this.withAttachments(context, mentionAttachments),
         settings,
       };
 
       for await (const event of streamAgentEvents(settings.bridgeUrl, request, this.abortController.signal)) {
-        if (event.type === 'start') {
-          this.status.textContent = `Running on ${event.provider}...`;
-          this.appendMessage('status', `Started ${event.provider}`);
-        } else if (event.type === 'status') {
-          this.appendMessage('status', event.text);
-        } else if (event.type === 'message') {
+        if (event.type === 'message') {
           if (isEditIntent) {
             generatedText = appendAssistantText(generatedText, event.text);
           } else {
-            this.appendMessage('assistant', event.text);
+            this.renderEvent(event, false);
           }
-        } else if (event.type === 'stderr') {
-          this.appendMessage('stderr', event.text);
         } else if (event.type === 'error') {
           failed = true;
-          this.appendMessage('error', event.message);
-          this.status.textContent = 'Error';
+          this.renderEvent(event, false);
         } else if (event.type === 'done') {
           const exitText = event.exitCode !== null ? ` (exit ${event.exitCode})` : '';
           if (event.exitCode && event.exitCode !== 0) {
@@ -374,6 +821,8 @@ export class ChatPanel {
             this.appendMessage('status', `Finished${exitText}`);
             this.status.textContent = 'Ready';
           }
+        } else {
+          this.renderEvent(event, false);
         }
       }
     } catch (error) {

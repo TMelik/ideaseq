@@ -1,6 +1,15 @@
 import { createServer, type ServerResponse } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
 import { runCodex } from './providers/codexProvider.js';
 import type { AgentEvent, AgentRequest } from '../src/shared/types.js';
+import {
+  appendSessionTurn,
+  getOrCreateSession,
+  listSessions,
+  loadSession,
+  toSessionSummary,
+} from './sessions/sessionStore.js';
 
 const DEFAULT_PORT = 45321;
 
@@ -37,6 +46,31 @@ function isAgentRequest(value: unknown): value is AgentRequest {
     && typeof record.settings === 'object';
 }
 
+function getQueryParam(url: string | undefined, key: string): string | undefined {
+  const value = new URL(url ?? '/', 'http://127.0.0.1').searchParams.get(key);
+  return value ?? undefined;
+}
+
+function matchSessionUrl(url: string | undefined): string | null {
+  const pathname = new URL(url ?? '/', 'http://127.0.0.1').pathname;
+  const match = pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+async function readGraphFile(graphPath: string | undefined, relativePath: string | undefined): Promise<string> {
+  if (!graphPath || !relativePath) {
+    throw new Error('graphPath and path are required');
+  }
+
+  const root = resolve(graphPath);
+  const target = resolve(root, relativePath);
+  if (target !== root && !target.startsWith(`${root}${sep}`)) {
+    throw new Error('File path must stay inside graph root');
+  }
+
+  return readFile(target, 'utf8');
+}
+
 async function handleChat(res: ServerResponse, request: AgentRequest): Promise<void> {
   res.writeHead(200, {
     'access-control-allow-origin': '*',
@@ -51,19 +85,32 @@ async function handleChat(res: ServerResponse, request: AgentRequest): Promise<v
   };
   res.on('close', stop);
 
+  const session = await getOrCreateSession(request);
+  const capturedEvents: AgentEvent[] = [];
+
   try {
-    const events = runCodex(request, abortController.signal);
+    sendEvent(res, { type: 'session', session: toSessionSummary(session) });
+    const events = runCodex({ ...request, sessionId: session.id, history: session.turns }, abortController.signal);
     for await (const event of events) {
       if (res.destroyed || res.writableEnded) {
         break;
       }
-      sendEvent(res, event);
+      const outgoing = event.type === 'start'
+        ? { ...event, sessionId: session.id }
+        : event;
+      capturedEvents.push(outgoing);
+      sendEvent(res, outgoing);
     }
   } catch (error) {
     if (!res.destroyed && !res.writableEnded) {
-      sendEvent(res, { type: 'error', message: error instanceof Error ? error.message : String(error) });
+      const event: AgentEvent = { type: 'error', message: error instanceof Error ? error.message : String(error) };
+      capturedEvents.push(event);
+      sendEvent(res, event);
     }
   } finally {
+    if (!abortController.signal.aborted && capturedEvents.length > 0) {
+      await appendSessionTurn(session, request, capturedEvents).catch(() => undefined);
+    }
     res.off('close', stop);
     if (!res.destroyed && !res.writableEnded) {
       res.end();
@@ -84,6 +131,33 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url === '/health') {
     sendJson(res, 200, { ok: true, name: 'ideaseq-bridge' });
+    return;
+  }
+
+  if (req.method === 'GET' && new URL(req.url ?? '/', 'http://127.0.0.1').pathname === '/api/sessions') {
+    sendJson(res, 200, { sessions: await listSessions(getQueryParam(req.url, 'graphPath')) });
+    return;
+  }
+
+  if (req.method === 'GET' && new URL(req.url ?? '/', 'http://127.0.0.1').pathname === '/api/context/file') {
+    try {
+      sendJson(res, 200, {
+        content: await readGraphFile(getQueryParam(req.url, 'graphPath'), getQueryParam(req.url, 'path')),
+      });
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : 'Unable to read file' });
+    }
+    return;
+  }
+
+  const sessionId = matchSessionUrl(req.url);
+  if (req.method === 'GET' && sessionId) {
+    const session = await loadSession(sessionId, getQueryParam(req.url, 'graphPath'));
+    if (!session) {
+      sendJson(res, 404, { error: 'Session not found' });
+      return;
+    }
+    sendJson(res, 200, { session });
     return;
   }
 

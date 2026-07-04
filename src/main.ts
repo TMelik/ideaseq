@@ -436,6 +436,13 @@ async function main(): Promise<void> {
     syncHostTheme();
     scheduleHostThemeSync();
   });
+  registerCleanup([
+    logseq.App.onRouteChanged(() => {
+      if (panel && logseq.isMainUIVisible) {
+        void panel.handleRouteChanged();
+      }
+    }),
+  ]);
 
   logseq.setMainUIInlineStyle({
     position: 'fixed',

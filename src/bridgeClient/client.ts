@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentRequest } from '../shared/types';
+import type { AgentEvent, AgentRequest, AgentSession, AgentSessionSummary } from '../shared/types';
 
 export async function checkBridgeHealth(bridgeUrl: string): Promise<boolean> {
   try {
@@ -51,4 +51,58 @@ export async function* streamAgentEvents(
   if (buffer.trim()) {
     yield JSON.parse(buffer) as AgentEvent;
   }
+}
+
+export async function listAgentSessions(
+  bridgeUrl: string,
+  graphPath?: string,
+): Promise<AgentSessionSummary[]> {
+  const url = new URL(`${bridgeUrl.replace(/\/$/, '')}/api/sessions`);
+  if (graphPath) url.searchParams.set('graphPath', graphPath);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'accept': 'application/json' },
+  });
+  if (!response.ok) return [];
+
+  const data = await response.json() as { sessions?: AgentSessionSummary[] };
+  return Array.isArray(data.sessions) ? data.sessions : [];
+}
+
+export async function getAgentSession(
+  bridgeUrl: string,
+  id: string,
+  graphPath?: string,
+): Promise<AgentSession | null> {
+  const url = new URL(`${bridgeUrl.replace(/\/$/, '')}/api/sessions/${encodeURIComponent(id)}`);
+  if (graphPath) url.searchParams.set('graphPath', graphPath);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'accept': 'application/json' },
+  });
+  if (!response.ok) return null;
+
+  const data = await response.json() as { session?: AgentSession };
+  return data.session ?? null;
+}
+
+export async function readGraphFile(
+  bridgeUrl: string,
+  graphPath: string,
+  path: string,
+): Promise<string | null> {
+  const url = new URL(`${bridgeUrl.replace(/\/$/, '')}/api/context/file`);
+  url.searchParams.set('graphPath', graphPath);
+  url.searchParams.set('path', path);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'accept': 'application/json' },
+  });
+  if (!response.ok) return null;
+
+  const data = await response.json() as { content?: string };
+  return typeof data.content === 'string' ? data.content : null;
 }

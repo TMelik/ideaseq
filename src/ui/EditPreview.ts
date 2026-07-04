@@ -34,10 +34,10 @@ export class EditPreview {
 
     const title = document.createElement('div');
     title.className = 'ideaseq-preview-title';
-    title.textContent = options.intent === 'rewrite-block' ? 'Rewrite preview' : 'Insert preview';
+    title.textContent = options.intent === 'insert-below' ? 'Insert preview' : 'Rewrite preview';
     root.append(title);
 
-    if (options.intent === 'rewrite-block') {
+    if (options.intent === 'rewrite-block' || options.intent === 'rewrite-selection') {
       appendBlock(root, 'Original', options.originalText ?? '');
     }
     appendBlock(root, 'Generated', options.generatedText);

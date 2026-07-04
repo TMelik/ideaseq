@@ -18,7 +18,12 @@ test('normalizes fixture Codex JSONL events', () => {
     text: 'Thread started: 019f2cf2-cf52-7c82-bda5-6644434cddcd',
   });
   assert.ok(events.some((event) => event.type === 'status' && event.text === 'Turn started'));
-  assert.ok(events.some((event) => event.type === 'status' && event.text === 'Executing: /usr/bin/zsh -lc ls'));
+  assert.ok(events.some((event) => event.type === 'tool'
+    && event.tool.phase === 'started'
+    && event.tool.command === '/usr/bin/zsh -lc ls'));
+  assert.ok(events.some((event) => event.type === 'tool'
+    && event.tool.phase === 'completed'
+    && event.tool.output.includes('README.md')));
   assert.ok(events.some((event) => event.type === 'message' && event.text.startsWith('Hello.')));
   assert.ok(events.some((event) => event.type === 'status' && event.text === 'Turn completed'));
 });

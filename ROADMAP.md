@@ -4,7 +4,33 @@
 
 Build Ideaseq: a Logseq plugin for brainstorming projects and texts with local AI agents. Ideaseq should let users discuss, develop, rewrite, and structure ideas using the current Logseq graph as context.
 
-The first version should focus on a working Codex MVP. Advanced agent features can be added after the core architecture is stable.
+The first version now has a working Codex MVP. The next work should harden the local agent workflow, editing safety, and graph context controls before adding advanced provider or MCP features.
+
+## Current Status
+
+### Done
+
+- Native Logseq plugin shell with toolbar, command palette, and slash command entry points.
+- Local Node.js bridge process for Codex CLI execution.
+- Codex JSONL streaming into the plugin UI.
+- Current page, current block, selected blocks, child blocks, and selected text context collection.
+- Safe edit previews for insert-below, rewrite-block, rewrite-selection, and selected-block batch rewrite.
+- Bridge health state, bridge command copy action, and offline UI.
+- Graph-local session history stored in `<graph-path>/.ideaseq/sessions`.
+- Session selector for resuming local Ideaseq conversations.
+- Tool command event rendering for Codex `command_execution` items.
+- Automatic current-page context, manual current-page attach/detach, and Follow/Lock page context mode.
+- Exact mention syntax for `@page(...)`, `@block(...)`, and `@file(...)`.
+- Marketplace theme mirroring into the plugin iframe.
+
+### Remaining Near-Term Work
+
+- Better page/block/file mention discovery UI with autocomplete.
+- Richer diff rendering for multi-block and file edits.
+- Native Codex thread resume if the provider API exposes stable resume semantics.
+- Stronger session management: rename, delete, fork, search, compaction.
+- Provider-neutral runtime layer for Claude and other providers.
+- Revisit manual current-block and selected-text attachment controls after Logseq selection/cursor handling is reliable enough.
 
 ## Recommended Approach
 
@@ -128,6 +154,8 @@ codex exec --json --cd <graph-path> --sandbox workspace-write --ask-for-approval
 - Show final answer in the chat panel.
 - Stop/cancel current run.
 
+Status: implemented.
+
 ### Phase 2: Block And Text Editing
 
 Add block-level actions:
@@ -144,6 +172,8 @@ For safety, edits should use a preview step first:
 - Let the user accept or reject.
 - Apply the accepted edit through Logseq APIs.
 
+Status: mostly implemented. Remaining improvements are better visual diffs, more robust selected text replacement when Logseq exposes richer editor selection metadata, and stronger validation for batch edits.
+
 ### Phase 3: Graph Context
 
 Add richer context controls:
@@ -152,7 +182,6 @@ Add richer context controls:
 - Mention blocks.
 - Mention graph files.
 - Attach current page automatically.
-- Attach selected blocks manually.
 - Add a visible context list in the chat UI.
 
 Possible mention syntax:
@@ -160,6 +189,8 @@ Possible mention syntax:
 - `@page`
 - `@block`
 - `@file`
+
+Status: first pass implemented with automatic current-page context, Follow/Lock page mode, manual page attach/detach, and exact mention syntax. Remaining work is autocomplete/search UI, richer page content extraction, better file attachment discovery, and future manual block/selection attachment controls.
 
 ### Phase 4: Advanced Agent Features
 
@@ -174,6 +205,8 @@ Add advanced features only after the MVP is stable:
 - Diff renderer for Markdown and Org files.
 - Tool call rendering.
 - Conversation compaction.
+
+Status: not started, except for the first session history and tool rendering foundations.
 
 ## Reference Concepts
 

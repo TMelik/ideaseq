@@ -124,6 +124,36 @@ body {
   line-height: 1.4;
 }
 
+.ideaseq-context-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--ideaseq-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.ideaseq-context-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  border: 1px solid var(--ideaseq-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: var(--ideaseq-surface);
+  overflow-wrap: anywhere;
+}
+
+.ideaseq-context-item button {
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
 .ideaseq-prompt {
   box-sizing: border-box;
   width: 100%;
@@ -158,6 +188,19 @@ body {
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
+}
+
+.ideaseq-session-select,
+.ideaseq-mode-select {
+  box-sizing: border-box;
+  min-width: 120px;
+  max-width: 100%;
+  border: 1px solid var(--ideaseq-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--ideaseq-surface);
+  color: inherit;
+  font-size: 13px;
 }
 
 .ideaseq-actions button:hover:not([disabled]) {
@@ -230,6 +273,41 @@ body {
   line-height: 1.5;
   white-space: pre-wrap;
   padding: 6px 0;
+}
+
+.msg-user {
+  color: var(--ideaseq-text);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  padding: 6px;
+  border-left: 2px solid var(--ideaseq-accent);
+  background: var(--ideaseq-bg);
+}
+
+.msg-tool {
+  border: 1px solid var(--ideaseq-border);
+  border-radius: 6px;
+  background: var(--ideaseq-bg);
+  color: var(--ideaseq-muted);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.msg-tool summary {
+  cursor: pointer;
+  padding: 6px;
+  overflow-wrap: anywhere;
+}
+
+.msg-tool pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  border-top: 1px solid var(--ideaseq-border);
+  padding: 6px;
+  color: var(--ideaseq-text);
+  white-space: pre-wrap;
 }
 
 .ideaseq-preview {

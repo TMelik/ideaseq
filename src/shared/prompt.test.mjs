@@ -74,6 +74,39 @@ test('includes selected and child block context', () => {
   assert.match(prompt, /Child blocks:\n- Child block/);
 });
 
+test('includes attached context', () => {
+  const prompt = buildAgentPrompt({
+    ...baseRequest,
+    context: {
+      attachments: [
+        { id: 'file:notes.md', kind: 'file', label: 'notes.md', path: 'notes.md', content: 'File notes' },
+      ],
+    },
+  });
+
+  assert.match(prompt, /Attached context:\n\[file\] notes.md/);
+  assert.match(prompt, /Path: notes.md/);
+  assert.match(prompt, /File notes/);
+});
+
+test('includes recent conversation history', () => {
+  const prompt = buildAgentPrompt({
+    ...baseRequest,
+    history: [
+      {
+        id: 'turn-1',
+        prompt: 'First question',
+        response: 'First answer',
+        createdAt: '2026-07-04T00:00:00.000Z',
+        events: [],
+      },
+    ],
+  });
+
+  assert.match(prompt, /Previous conversation:\nUser: First question/);
+  assert.match(prompt, /Assistant: First answer/);
+});
+
 test('adds edit output contract for edit intents', () => {
   const prompt = buildAgentPrompt({
     ...baseRequest,
@@ -86,6 +119,21 @@ test('adds edit output contract for edit intents', () => {
   assert.match(prompt, /Return ONLY the text\/markdown/);
   assert.match(prompt, /Do not include introductory or concluding remarks/);
   assert.match(prompt, /Current block:\nOriginal block/);
+});
+
+test('adds JSON output contract for selected block batch edits', () => {
+  const prompt = buildAgentPrompt({
+    ...baseRequest,
+    intent: 'rewrite-selected-blocks',
+    context: {
+      selectedBlocks: [
+        { uuid: 'block-1', content: 'Original block' },
+      ],
+    },
+  });
+
+  assert.match(prompt, /Return ONLY valid JSON/);
+  assert.match(prompt, /"blocks":\[\{"uuid":"block uuid","content":"replacement markdown"\}\]/);
 });
 
 test('accumulates assistant message text for edit previews', () => {

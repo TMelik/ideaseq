@@ -1,13 +1,13 @@
 {
   "name": "ideaseq",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Logseq plugin for brainstorming projects and texts with local AI agents.",
   "type": "module",
   "main": "dist/index.html",
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.bridge.json",
-    "test": "npm run build && node --test bridge/providers/codexProvider.test.mjs src/shared/prompt.test.mjs",
+    "test": "npm run build && node --test bridge/providers/codexProvider.test.mjs bridge/sessions/sessionStore.test.mjs src/shared/prompt.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.bridge.json --noEmit",
     "bridge": "node dist-bridge/bridge/index.js"
   },

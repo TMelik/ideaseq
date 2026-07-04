@@ -1,6 +1,6 @@
 import '@logseq/libs';
 
-import type { BlockContext, GraphContext } from '../shared/types';
+import type { BlockContext, ContextAttachment, GraphContext } from '../shared/types';
 
 type CurrentGraph = {
   path?: string;
@@ -40,6 +40,23 @@ function toBlockContexts(value: unknown): BlockContext[] | undefined {
   return blocks.length > 0 ? blocks : undefined;
 }
 
+function flattenBlocks(value: unknown): BlockContext[] {
+  if (!Array.isArray(value)) return [];
+  const blocks: BlockContext[] = [];
+  for (const item of value) {
+    const block = toBlockContext(item);
+    if (block) blocks.push(block);
+    if (isRecord(item)) {
+      blocks.push(...flattenBlocks(item.children));
+    }
+  }
+  return blocks;
+}
+
+function formatBlocks(blocks: BlockContext[]): string {
+  return blocks.map((block) => `- ${block.content}`).join('\n');
+}
+
 async function getSelectedBlocks(): Promise<BlockContext[] | undefined> {
   const editor = logseq.Editor as typeof logseq.Editor & {
     getSelectedBlocks?: () => Promise<unknown>;
@@ -65,6 +82,49 @@ async function getChildBlocks(blockUuid?: string): Promise<BlockContext[] | unde
   }
 }
 
+async function getPageBlocks(pageName: string): Promise<BlockContext[]> {
+  const editor = logseq.Editor as typeof logseq.Editor & {
+    getPageBlocksTree?: (pageName: string) => Promise<unknown>;
+  };
+
+  try {
+    const blocks = editor.getPageBlocksTree
+      ? await editor.getPageBlocksTree(pageName)
+      : await logseq.Editor.getCurrentPageBlocksTree();
+    return flattenBlocks(blocks);
+  } catch {
+    return [];
+  }
+}
+
+export async function getPageAttachment(pageName: string): Promise<ContextAttachment> {
+  const blocks = await getPageBlocks(pageName);
+  return {
+    id: `page:${pageName}`,
+    kind: 'page',
+    label: pageName,
+    content: blocks.length > 0 ? formatBlocks(blocks) : undefined,
+  };
+}
+
+function getSelectedText(): string | undefined {
+  try {
+    const ownSelection = window.getSelection()?.toString().trim();
+    if (ownSelection) return ownSelection;
+  } catch {
+    // Ignore inaccessible selection APIs.
+  }
+
+  try {
+    const parentSelection = window.parent?.getSelection()?.toString().trim();
+    if (parentSelection) return parentSelection;
+  } catch {
+    // Parent document access can be unavailable.
+  }
+
+  return undefined;
+}
+
 export async function getGraphContext(): Promise<GraphContext> {
   const [graph, page, block] = await Promise.all([
     logseq.App.getCurrentGraph() as Promise<CurrentGraph | null>,
@@ -88,6 +148,7 @@ export async function getGraphContext(): Promise<GraphContext> {
     currentBlock,
     selectedBlocks,
     childBlocks,
+    selectedText: getSelectedText(),
   };
 }
 
@@ -96,7 +157,9 @@ export function summarizeContext(context: GraphContext): string {
   if (context.currentPage?.name) parts.push(`page: ${context.currentPage.name}`);
   if (context.currentBlock?.content) parts.push('current block');
   if (context.selectedBlocks?.length) parts.push(`${context.selectedBlocks.length} selected block(s)`);
+  if (context.selectedText) parts.push('selected text');
   if (context.childBlocks?.length) parts.push(`${context.childBlocks.length} child block(s)`);
+  if (context.attachments?.length) parts.push(`${context.attachments.length} attachment(s)`);
   if (context.graphPath) parts.push('graph path available');
   return parts.length > 0 ? parts.join(', ') : 'no active Logseq context';
 }

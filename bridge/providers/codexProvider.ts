@@ -59,7 +59,16 @@ export function normalizeCodexEvent(event: unknown): AgentEvent | null {
       if (isRecord(item)) {
         const itemType = textField(item, 'type');
         if (itemType === 'command_execution') {
-          return { type: 'status', text: `Executing: ${textField(item, 'command')}` };
+          return {
+            type: 'tool',
+            tool: {
+              id: textField(item, 'id') || 'command',
+              phase: 'started',
+              command: textField(item, 'command'),
+              output: textField(item, 'aggregated_output') || undefined,
+              exitCode: numberField(item, 'exit_code'),
+            },
+          };
         }
         return { type: 'status', text: `Started: ${itemType || 'item'}` };
       }
@@ -73,9 +82,16 @@ export function normalizeCodexEvent(event: unknown): AgentEvent | null {
           return { type: 'message', text: textField(item, 'text') };
         }
         if (itemType === 'command_execution') {
-          const exitCode = numberField(item, 'exit_code');
-          const exitText = exitCode !== null ? ` (exit ${exitCode})` : '';
-          return { type: 'status', text: `Completed${exitText}: ${textField(item, 'command')}` };
+          return {
+            type: 'tool',
+            tool: {
+              id: textField(item, 'id') || 'command',
+              phase: 'completed',
+              command: textField(item, 'command'),
+              output: textField(item, 'aggregated_output') || undefined,
+              exitCode: numberField(item, 'exit_code'),
+            },
+          };
         }
         return { type: 'status', text: `Completed: ${itemType || 'item'}` };
       }

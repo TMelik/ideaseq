@@ -70,5 +70,19 @@ export function registerBlockCommands(openPanel: OpenPanel): Array<() => void> {
     });
   }));
 
+  unregisters.push(logseq.Editor.registerSlashCommand('Ideaseq: Rewrite selected text', async (args?: SlashCommandArgs) => {
+    await openForBlock(openPanel, args, {
+      intent: 'rewrite-selection',
+      presetPrompt: 'Rewrite the selected text while preserving its meaning.',
+    });
+  }));
+
+  unregisters.push(logseq.Editor.registerSlashCommand('Ideaseq: Rewrite selected blocks', async () => {
+    await openPanel({
+      intent: 'rewrite-selected-blocks',
+      presetPrompt: 'Rewrite the selected blocks while preserving their meaning and structure.',
+    });
+  }));
+
   return unregisters.filter((unregister): unregister is () => void => typeof unregister === 'function');
 }

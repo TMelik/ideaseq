@@ -1,12 +1,12 @@
 # Ideaseq
 
-Ideaseq is a planned Logseq plugin for brainstorming projects and texts with local AI agents.
+Ideaseq is a Logseq plugin for brainstorming projects and texts with local AI agents.
 
 The goal is to make Logseq a practical thinking workspace where an agent can use the current graph, page, block, or selected text as context, then help develop ideas, structure plans, rewrite drafts, and propose edits.
 
 ## Status
 
-Early implementation stage. The repository contains the initial Logseq plugin scaffold and local bridge skeleton.
+Version `0.2.0` is a working MVP. Ideaseq currently provides a Logseq chat panel, Codex-backed local bridge, streamed responses, command/tool output rendering, graph context injection, session history, current-page context attachments, and safe edit previews for block/text workflows.
 
 See [ROADMAP.md](ROADMAP.md) for the current architecture and rollout plan.
 
@@ -37,7 +37,7 @@ Logseq block/page context
 -> accepted change applied back into Logseq
 ```
 
-## Planned Architecture
+## Architecture
 
 Ideaseq will use two layers:
 
@@ -59,6 +59,35 @@ The first provider target is Codex through non-interactive JSON output:
 ```bash
 codex exec --json --cd <graph-path> --sandbox workspace-write --ask-for-approval on-request
 ```
+
+The bridge normalizes Codex JSONL into Ideaseq events and stores graph-local session history under:
+
+```text
+<graph-path>/.ideaseq/sessions
+```
+
+If the graph path is unavailable, it falls back to the bridge working directory.
+
+## Versioning
+
+Ideaseq uses SemVer while it is still pre-1.0:
+
+- `0.x.0` marks meaningful MVP milestones or user-visible workflow changes.
+- `0.x.y` marks fixes, polish, and narrow compatibility updates.
+- `1.0.0` should wait until the bridge, session model, and core Logseq editing workflows are stable enough for regular use.
+
+## Current Workflows
+
+- Open the Ideaseq panel from the Logseq toolbar or command palette.
+- Ask about the current page/block context.
+- Insert generated text below the current block.
+- Rewrite the current block.
+- Rewrite selected text when it is found exactly once in the current block.
+- Rewrite selected blocks through a JSON preview and batch apply step.
+- Attach the current page manually; the current page is also attached automatically when the panel opens.
+- Switch page context mode between `Follow page` and `Lock page`.
+- Use exact mentions in prompts: `@page(Name)`, `@block(uuid)`, `@file(relative/path.md)`.
+- Continue previous local sessions from the session selector.
 
 ## Development
 
