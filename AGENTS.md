@@ -21,6 +21,16 @@ Before making changes, read:
 - Start with Codex as the first provider.
 - Add Claude and other providers behind a provider-neutral bridge interface later.
 
+## Engineering Constraints
+
+- Prefer minimal LOC and simple code paths.
+- Prefer minimal dependencies.
+- Add a dependency only when it removes meaningful complexity or risk.
+- Keep the codebase easy to audit.
+- Keep abstractions small and justified by current behavior, not speculative future scope.
+- Avoid framework or tooling choices that make the plugin harder to maintain.
+- Favor clear data contracts between the Logseq frontend and local bridge.
+
 ## References And Provenance
 
 - Claudian is a product and architecture reference only.
